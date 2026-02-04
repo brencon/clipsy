@@ -48,7 +48,7 @@ class ClipsyApp(rumps.App):
                             entry.preview,
                             callback=self._on_entry_click,
                             icon=thumb_path,
-                            dimensions=(16, 16),
+                            dimensions=(24, 24),
                             template=False,
                         )
                     else:
@@ -175,7 +175,7 @@ class ClipsyApp(rumps.App):
                             entry.preview,
                             callback=self._on_entry_click,
                             icon=thumb_path,
-                            dimensions=(16, 16),
+                            dimensions=(24, 24),
                             template=False,
                         )
                     else:

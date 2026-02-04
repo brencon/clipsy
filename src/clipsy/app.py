@@ -3,7 +3,7 @@ import logging
 import rumps
 
 from clipsy import __version__
-from clipsy.config import DB_PATH, IMAGE_DIR, MENU_DISPLAY_COUNT, POLL_INTERVAL, THUMBNAIL_SIZE
+from clipsy.config import DB_PATH, IMAGE_DIR, MENU_DISPLAY_COUNT, POLL_INTERVAL, REDACT_SENSITIVE, THUMBNAIL_SIZE
 from clipsy.models import ClipboardEntry, ContentType
 from clipsy.monitor import ClipboardMonitor
 from clipsy.storage import StorageManager
@@ -41,20 +41,21 @@ class ClipsyApp(rumps.App):
             for entry in entries:
                 key = f"{ENTRY_KEY_PREFIX}{entry.id}"
                 self._entry_ids[key] = entry.id
+                display_text = self._get_display_preview(entry)
                 if entry.content_type == ContentType.IMAGE:
                     thumb_path = self._ensure_thumbnail(entry)
                     if thumb_path:
                         item = rumps.MenuItem(
-                            entry.preview,
+                            display_text,
                             callback=self._on_entry_click,
                             icon=thumb_path,
                             dimensions=(32, 32),
                             template=False,
                         )
                     else:
-                        item = rumps.MenuItem(entry.preview, callback=self._on_entry_click)
+                        item = rumps.MenuItem(display_text, callback=self._on_entry_click)
                 else:
-                    item = rumps.MenuItem(entry.preview, callback=self._on_entry_click)
+                    item = rumps.MenuItem(display_text, callback=self._on_entry_click)
                 item._id = key
                 self.menu.add(item)
 
@@ -62,6 +63,12 @@ class ClipsyApp(rumps.App):
         self.menu.add(rumps.MenuItem("Clear History", callback=self._on_clear))
         self.menu.add(None)  # separator
         self.menu.add(rumps.MenuItem("Quit Clipsy", callback=self._on_quit))
+
+    def _get_display_preview(self, entry: ClipboardEntry) -> str:
+        """Get the display preview for an entry, masking sensitive data if enabled."""
+        if REDACT_SENSITIVE and entry.is_sensitive and entry.masked_preview:
+            return f"🔒 {entry.masked_preview}"
+        return entry.preview
 
     def _ensure_thumbnail(self, entry: ClipboardEntry) -> str | None:
         """Ensure a thumbnail exists for an image entry, generating if needed."""
@@ -168,20 +175,21 @@ class ClipsyApp(rumps.App):
             for entry in results:
                 key = f"{ENTRY_KEY_PREFIX}{entry.id}"
                 self._entry_ids[key] = entry.id
+                display_text = self._get_display_preview(entry)
                 if entry.content_type == ContentType.IMAGE:
                     thumb_path = self._ensure_thumbnail(entry)
                     if thumb_path:
                         item = rumps.MenuItem(
-                            entry.preview,
+                            display_text,
                             callback=self._on_entry_click,
                             icon=thumb_path,
                             dimensions=(32, 32),
                             template=False,
                         )
                     else:
-                        item = rumps.MenuItem(entry.preview, callback=self._on_entry_click)
+                        item = rumps.MenuItem(display_text, callback=self._on_entry_click)
                 else:
-                    item = rumps.MenuItem(entry.preview, callback=self._on_entry_click)
+                    item = rumps.MenuItem(display_text, callback=self._on_entry_click)
                 item._id = key
                 self.menu.add(item)
 

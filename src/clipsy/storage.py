@@ -18,7 +18,9 @@ CREATE TABLE IF NOT EXISTS clipboard_entries (
     created_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S', 'now', 'localtime')),
     pinned         INTEGER NOT NULL DEFAULT 0,
     source_app     TEXT,
-    thumbnail_path TEXT
+    thumbnail_path TEXT,
+    is_sensitive   INTEGER NOT NULL DEFAULT 0,
+    masked_preview TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_created_at ON clipboard_entries(created_at DESC);
@@ -64,12 +66,16 @@ class StorageManager:
         columns = {row[1] for row in cursor.fetchall()}
         if "thumbnail_path" not in columns:
             self._conn.execute("ALTER TABLE clipboard_entries ADD COLUMN thumbnail_path TEXT")
+        if "is_sensitive" not in columns:
+            self._conn.execute("ALTER TABLE clipboard_entries ADD COLUMN is_sensitive INTEGER NOT NULL DEFAULT 0")
+        if "masked_preview" not in columns:
+            self._conn.execute("ALTER TABLE clipboard_entries ADD COLUMN masked_preview TEXT")
 
     def add_entry(self, entry: ClipboardEntry) -> int:
         cursor = self._conn.execute(
             """INSERT INTO clipboard_entries
-               (content_type, text_content, image_path, preview, content_hash, byte_size, created_at, pinned, source_app, thumbnail_path)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               (content_type, text_content, image_path, preview, content_hash, byte_size, created_at, pinned, source_app, thumbnail_path, is_sensitive, masked_preview)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 entry.content_type.value,
                 entry.text_content,
@@ -81,6 +87,8 @@ class StorageManager:
                 int(entry.pinned),
                 entry.source_app,
                 entry.thumbnail_path,
+                int(entry.is_sensitive),
+                entry.masked_preview,
             ),
         )
         self._conn.commit()
@@ -228,8 +236,11 @@ class StorageManager:
         return " ".join(quoted)
 
     def _row_to_entry(self, row: sqlite3.Row) -> ClipboardEntry:
-        # Handle thumbnail_path which may not exist in older databases
-        thumbnail_path = row["thumbnail_path"] if "thumbnail_path" in row.keys() else None
+        # Handle columns which may not exist in older databases
+        keys = row.keys()
+        thumbnail_path = row["thumbnail_path"] if "thumbnail_path" in keys else None
+        is_sensitive = bool(row["is_sensitive"]) if "is_sensitive" in keys else False
+        masked_preview = row["masked_preview"] if "masked_preview" in keys else None
         return ClipboardEntry(
             id=row["id"],
             content_type=ContentType(row["content_type"]),
@@ -242,4 +253,6 @@ class StorageManager:
             pinned=bool(row["pinned"]),
             source_app=row["source_app"],
             thumbnail_path=thumbnail_path,
+            is_sensitive=is_sensitive,
+            masked_preview=masked_preview,
         )

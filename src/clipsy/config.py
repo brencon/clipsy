@@ -11,4 +11,4 @@ MAX_ENTRIES = 500  # auto-purge threshold
 MAX_TEXT_SIZE = 1_000_000  # 1MB text limit
 MAX_IMAGE_SIZE = 10_000_000  # 10MB image limit
 PREVIEW_LENGTH = 60  # characters shown in menu item
-MENU_DISPLAY_COUNT = 25  # items shown in dropdown
+MENU_DISPLAY_COUNT = 10  # items shown in dropdown

@@ -7,8 +7,6 @@ on:
 
 permissions:
   contents: write
-  issues: write
-  pull-requests: write
 
 jobs:
   release:
@@ -27,45 +25,18 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install dependencies
-        run: |
-          pip install python-semantic-release
+      - name: Install python-semantic-release
+        run: pip install python-semantic-release
 
       - name: Python Semantic Release
-        id: release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          semantic-release version --no-vcs-release
 
-          # Check if version was bumped
-          if git diff --quiet; then
-            echo "released=false" >> $GITHUB_OUTPUT
-            echo "No release needed"
-          else
-            # Get the new version
-            VERSION=$(grep -o '__version__ = "[^"]*"' src/clipsy/__init__.py | cut -d'"' -f2)
-            echo "version=$VERSION" >> $GITHUB_OUTPUT
-            echo "released=true" >> $GITHUB_OUTPUT
+          # Run semantic-release which handles version bump, commit, tag, and GitHub release
+          semantic-release version
 
-            # Update README badge
-            sed -i "s/version-[0-9]*\.[0-9]*\.[0-9]*-blue/version-$VERSION-blue/" README.md
-
-            # Commit changes
-            git add -A
-            git commit -m "chore(release): v$VERSION" --allow-empty
-            git tag "v$VERSION"
-            git push origin main --tags
-          fi
-
-      - name: Create GitHub Release
-        if: steps.release.outputs.released == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          VERSION=${{ steps.release.outputs.version }}
-          gh release create "v$VERSION" \
-            --title "Clipsy v$VERSION" \
-            --generate-notes
+          # Push changes if any were made
+          git push origin main --tags || true

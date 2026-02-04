@@ -110,3 +110,41 @@ class TestCreateThumbnail:
             str(tmp_path / "thumb.png"),
         )
         assert result is False
+
+    def test_valid_png_creates_thumbnail(self, tmp_path):
+        """Test that a valid PNG creates a thumbnail."""
+        # Create a minimal valid PNG (1x1 red pixel)
+        # PNG structure: signature + IHDR chunk + IDAT chunk + IEND chunk
+        import zlib
+
+        def create_minimal_png():
+            signature = b"\x89PNG\r\n\x1a\n"
+
+            # IHDR chunk (width=1, height=1, bit_depth=8, color_type=2=RGB)
+            ihdr_data = b"\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00"
+            ihdr_crc = zlib.crc32(b"IHDR" + ihdr_data) & 0xFFFFFFFF
+            ihdr_chunk = b"\x00\x00\x00\x0d" + b"IHDR" + ihdr_data + ihdr_crc.to_bytes(4, "big")
+
+            # IDAT chunk (1 pixel: filter byte + RGB)
+            raw_data = b"\x00\xff\x00\x00"  # filter=0, R=255, G=0, B=0
+            compressed = zlib.compress(raw_data)
+            idat_crc = zlib.crc32(b"IDAT" + compressed) & 0xFFFFFFFF
+            idat_chunk = len(compressed).to_bytes(4, "big") + b"IDAT" + compressed + idat_crc.to_bytes(4, "big")
+
+            # IEND chunk
+            iend_crc = zlib.crc32(b"IEND") & 0xFFFFFFFF
+            iend_chunk = b"\x00\x00\x00\x00" + b"IEND" + iend_crc.to_bytes(4, "big")
+
+            return signature + ihdr_chunk + idat_chunk + iend_chunk
+
+        png_file = tmp_path / "test.png"
+        thumb_file = tmp_path / "thumb.png"
+        png_file.write_bytes(create_minimal_png())
+
+        result = create_thumbnail(str(png_file), str(thumb_file), size=(16, 16))
+
+        assert result is True
+        assert thumb_file.exists()
+        # Thumbnail should be a valid PNG
+        thumb_data = thumb_file.read_bytes()
+        assert thumb_data.startswith(b"\x89PNG")

@@ -46,6 +46,15 @@ class TestDeduplication:
         new_entry = storage.get_entry(entry_id)
         assert new_entry.created_at >= old_entry.created_at
 
+    def test_update_thumbnail_path(self, storage, make_entry):
+        from clipsy.models import ContentType
+
+        entry = make_entry("img", content_type=ContentType.IMAGE, thumbnail_path=None)
+        entry_id = storage.add_entry(entry)
+        storage.update_thumbnail_path(entry_id, "/new/thumb.png")
+        updated = storage.get_entry(entry_id)
+        assert updated.thumbnail_path == "/new/thumb.png"
+
 
 class TestSearch:
     def test_search_text(self, storage, make_entry):
@@ -152,3 +161,188 @@ class TestCount:
         for i in range(3):
             storage.add_entry(make_entry(f"item {i}", content_hash=f"hash_{i}"))
         assert storage.count() == 3
+
+
+class TestImageEntries:
+    def test_add_image_entry_with_thumbnail(self, storage, make_entry):
+        from clipsy.models import ContentType
+
+        entry = make_entry(
+            "img",
+            content_type=ContentType.IMAGE,
+            image_path="/tmp/test.png",
+            thumbnail_path="/tmp/test_thumb.png",
+        )
+        entry_id = storage.add_entry(entry)
+        retrieved = storage.get_entry(entry_id)
+        assert retrieved.content_type == ContentType.IMAGE
+        assert retrieved.image_path == "/tmp/test.png"
+        assert retrieved.thumbnail_path == "/tmp/test_thumb.png"
+
+    def test_add_image_entry_without_thumbnail(self, storage, make_entry):
+        from clipsy.models import ContentType
+
+        entry = make_entry(
+            "img",
+            content_type=ContentType.IMAGE,
+            image_path="/tmp/test.png",
+            thumbnail_path=None,
+        )
+        entry_id = storage.add_entry(entry)
+        retrieved = storage.get_entry(entry_id)
+        assert retrieved.thumbnail_path is None
+
+
+class TestContextManager:
+    def test_context_manager_usage(self):
+        from clipsy.storage import StorageManager
+
+        with StorageManager(db_path=":memory:") as mgr:
+            assert mgr.count() == 0
+
+    def test_context_manager_closes_on_exit(self):
+        from clipsy.storage import StorageManager
+
+        mgr = StorageManager(db_path=":memory:")
+        mgr.__enter__()
+        result = mgr.__exit__(None, None, None)
+        assert result is False
+
+
+class TestMigration:
+    def test_migrate_adds_thumbnail_path_column(self, tmp_path):
+        """Test that migration adds thumbnail_path to old databases."""
+        import sqlite3
+        from clipsy.storage import StorageManager
+
+        # Create a minimal old-style database without thumbnail_path column
+        db_file = tmp_path / "old_db.sqlite"
+        conn = sqlite3.connect(str(db_file))
+        conn.executescript("""
+            CREATE TABLE clipboard_entries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                content_type TEXT NOT NULL,
+                text_content TEXT,
+                image_path TEXT,
+                preview TEXT NOT NULL,
+                content_hash TEXT NOT NULL,
+                byte_size INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                pinned INTEGER NOT NULL DEFAULT 0,
+                source_app TEXT
+            );
+        """)
+        conn.commit()
+        conn.close()
+
+        # Open with StorageManager which should run migration
+        mgr = StorageManager(db_path=str(db_file))
+
+        # Verify thumbnail_path column exists
+        cursor = mgr._conn.execute("PRAGMA table_info(clipboard_entries)")
+        columns = {row[1] for row in cursor.fetchall()}
+        assert "thumbnail_path" in columns
+
+        mgr.close()
+
+
+class TestFileCleanup:
+    def test_delete_entry_removes_image_file(self, storage, make_entry, tmp_path):
+        from clipsy.models import ContentType
+
+        # Create a real image file
+        image_file = tmp_path / "test_image.png"
+        image_file.write_bytes(b"fake png data")
+
+        entry = make_entry(
+            "img",
+            content_type=ContentType.IMAGE,
+            image_path=str(image_file),
+            thumbnail_path=None,
+        )
+        entry_id = storage.add_entry(entry)
+
+        assert image_file.exists()
+        storage.delete_entry(entry_id)
+        assert not image_file.exists()
+
+    def test_delete_entry_removes_thumbnail_file(self, storage, make_entry, tmp_path):
+        from clipsy.models import ContentType
+
+        # Create real image and thumbnail files
+        image_file = tmp_path / "test_image.png"
+        thumb_file = tmp_path / "test_thumb.png"
+        image_file.write_bytes(b"fake png data")
+        thumb_file.write_bytes(b"fake thumb data")
+
+        entry = make_entry(
+            "img",
+            content_type=ContentType.IMAGE,
+            image_path=str(image_file),
+            thumbnail_path=str(thumb_file),
+        )
+        entry_id = storage.add_entry(entry)
+
+        assert image_file.exists()
+        assert thumb_file.exists()
+        storage.delete_entry(entry_id)
+        assert not image_file.exists()
+        assert not thumb_file.exists()
+
+    def test_clear_all_removes_image_files(self, storage, make_entry, tmp_path):
+        from clipsy.models import ContentType
+
+        # Create multiple image files
+        image1 = tmp_path / "img1.png"
+        image2 = tmp_path / "img2.png"
+        thumb1 = tmp_path / "thumb1.png"
+        image1.write_bytes(b"data1")
+        image2.write_bytes(b"data2")
+        thumb1.write_bytes(b"thumb data")
+
+        storage.add_entry(
+            make_entry("img1", content_type=ContentType.IMAGE, image_path=str(image1), thumbnail_path=str(thumb1), content_hash="h1")
+        )
+        storage.add_entry(
+            make_entry("img2", content_type=ContentType.IMAGE, image_path=str(image2), thumbnail_path=None, content_hash="h2")
+        )
+
+        assert image1.exists()
+        assert image2.exists()
+        assert thumb1.exists()
+
+        storage.clear_all()
+
+        assert not image1.exists()
+        assert not image2.exists()
+        assert not thumb1.exists()
+
+    def test_purge_old_removes_image_files(self, storage, make_entry, tmp_path):
+        from clipsy.models import ContentType
+
+        # Create old entries with files that will be purged
+        for i in range(5):
+            img = tmp_path / f"old_img_{i}.png"
+            thumb = tmp_path / f"old_thumb_{i}.png"
+            img.write_bytes(f"data_{i}".encode())
+            thumb.write_bytes(f"thumb_{i}".encode())
+            storage.add_entry(
+                make_entry(
+                    f"img{i}",
+                    content_type=ContentType.IMAGE,
+                    image_path=str(img),
+                    thumbnail_path=str(thumb),
+                    content_hash=f"hash_{i}",
+                )
+            )
+
+        assert storage.count() == 5
+
+        # Purge all but 2
+        deleted = storage.purge_old(keep_count=2)
+        assert deleted == 3
+        assert storage.count() == 2
+
+        # Check that old files were deleted
+        remaining_files = list(tmp_path.glob("*.png"))
+        assert len(remaining_files) == 4  # 2 images + 2 thumbnails

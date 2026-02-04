@@ -5,6 +5,9 @@ import pytest
 from clipsy.models import ClipboardEntry, ContentType
 from clipsy.storage import StorageManager
 
+# Sentinel to distinguish "not provided" from "explicitly None"
+_UNSET = object()
+
 
 @pytest.fixture
 def storage():
@@ -23,9 +26,11 @@ def make_entry():
         content_hash: str | None = None,
         pinned: bool = False,
         image_path: str | None = None,
-        thumbnail_path: str | None = None,
+        thumbnail_path: str | None = _UNSET,
     ) -> ClipboardEntry:
         if content_type == ContentType.IMAGE:
+            # Use default only if not provided; explicit None stays None
+            actual_thumbnail = "/tmp/test_thumb.png" if thumbnail_path is _UNSET else thumbnail_path
             return ClipboardEntry(
                 id=None,
                 content_type=content_type,
@@ -36,8 +41,10 @@ def make_entry():
                 byte_size=1000,
                 created_at=datetime.now(),
                 pinned=pinned,
-                thumbnail_path=thumbnail_path or "/tmp/test_thumb.png",
+                thumbnail_path=actual_thumbnail,
             )
+        # For TEXT entries, thumbnail_path should be None unless explicitly provided
+        text_thumbnail = None if thumbnail_path is _UNSET else thumbnail_path
         return ClipboardEntry(
             id=None,
             content_type=content_type,
@@ -48,7 +55,7 @@ def make_entry():
             byte_size=len(text.encode()) if text else 0,
             created_at=datetime.now(),
             pinned=pinned,
-            thumbnail_path=thumbnail_path,
+            thumbnail_path=text_thumbnail,
         )
 
     return _make_entry

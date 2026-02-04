@@ -16,7 +16,7 @@ ENTRY_KEY_PREFIX = "clipsy_entry_"
 
 class ClipsyApp(rumps.App):
     def __init__(self):
-        super().__init__("Clipsy", title="\U0001f4cb", quit_button=None)
+        super().__init__("Clipsy", title="✂️", quit_button=None)
         ensure_dirs()
         self._storage = StorageManager(DB_PATH)
         self._monitor = ClipboardMonitor(self._storage, on_change=self._refresh_menu)

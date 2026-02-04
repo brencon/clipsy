@@ -4,10 +4,10 @@ from pathlib import Path
 
 from AppKit import NSPasteboard, NSPasteboardTypePNG, NSPasteboardTypeTIFF, NSPasteboardTypeString, NSFilenamesPboardType
 
-from clipsy.config import IMAGE_DIR, MAX_IMAGE_SIZE, MAX_TEXT_SIZE, PREVIEW_LENGTH
+from clipsy.config import IMAGE_DIR, MAX_IMAGE_SIZE, MAX_TEXT_SIZE, PREVIEW_LENGTH, THUMBNAIL_SIZE
 from clipsy.models import ClipboardEntry, ContentType
 from clipsy.storage import StorageManager
-from clipsy.utils import compute_hash, ensure_dirs, get_image_dimensions, truncate_text
+from clipsy.utils import compute_hash, create_thumbnail, ensure_dirs, get_image_dimensions, truncate_text
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +84,7 @@ class ClipboardMonitor:
                     return None
                 content_hash = compute_hash(img_bytes)
                 is_png = img_type == NSPasteboardTypePNG
-                image_path = self._save_image(img_bytes, content_hash, is_png)
+                image_path, thumbnail_path = self._save_image(img_bytes, content_hash, is_png)
                 width, height = get_image_dimensions(img_bytes)
                 preview = f"[Image: {width}x{height}]" if width > 0 else "[Image]"
                 return ClipboardEntry(
@@ -96,6 +96,7 @@ class ClipboardMonitor:
                     content_hash=content_hash,
                     byte_size=len(img_bytes),
                     created_at=datetime.now(),
+                    thumbnail_path=str(thumbnail_path) if thumbnail_path else None,
                 )
 
         if NSFilenamesPboardType in types:
@@ -121,10 +122,19 @@ class ClipboardMonitor:
 
         return None
 
-    def _save_image(self, img_bytes: bytes, content_hash: str, is_png: bool) -> Path:
+    def _save_image(self, img_bytes: bytes, content_hash: str, is_png: bool) -> tuple[Path, Path | None]:
         ext = ".png" if is_png else ".tiff"
         filename = content_hash[:12] + ext
         path = IMAGE_DIR / filename
         if not path.exists():
             path.write_bytes(img_bytes)
-        return path
+
+        # Generate thumbnail
+        thumb_filename = content_hash[:12] + "_thumb.png"
+        thumb_path = IMAGE_DIR / thumb_filename
+        if not thumb_path.exists():
+            if create_thumbnail(str(path), str(thumb_path), THUMBNAIL_SIZE):
+                return path, thumb_path
+            else:
+                return path, None
+        return path, thumb_path

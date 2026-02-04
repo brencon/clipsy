@@ -12,3 +12,4 @@ MAX_TEXT_SIZE = 1_000_000  # 1MB text limit
 MAX_IMAGE_SIZE = 10_000_000  # 10MB image limit
 PREVIEW_LENGTH = 60  # characters shown in menu item
 MENU_DISPLAY_COUNT = 10  # items shown in dropdown
+THUMBNAIL_SIZE = (32, 32)  # pixels, for menu icon display

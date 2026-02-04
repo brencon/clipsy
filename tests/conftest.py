@@ -23,6 +23,7 @@ def make_entry():
         content_hash: str | None = None,
         pinned: bool = False,
         image_path: str | None = None,
+        thumbnail_path: str | None = None,
     ) -> ClipboardEntry:
         if content_type == ContentType.IMAGE:
             return ClipboardEntry(
@@ -35,6 +36,7 @@ def make_entry():
                 byte_size=1000,
                 created_at=datetime.now(),
                 pinned=pinned,
+                thumbnail_path=thumbnail_path or "/tmp/test_thumb.png",
             )
         return ClipboardEntry(
             id=None,
@@ -46,6 +48,7 @@ def make_entry():
             byte_size=len(text.encode()) if text else 0,
             created_at=datetime.now(),
             pinned=pinned,
+            thumbnail_path=thumbnail_path,
         )
 
     return _make_entry

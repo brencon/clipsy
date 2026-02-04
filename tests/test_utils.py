@@ -1,7 +1,7 @@
 import struct
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
-from clipsy.utils import compute_hash, ensure_dirs, get_image_dimensions, truncate_text
+from clipsy.utils import compute_hash, create_thumbnail, ensure_dirs, get_image_dimensions, truncate_text
 
 
 class TestComputeHash:
@@ -90,3 +90,23 @@ class TestEnsureDirs:
 
         assert data_dir.exists()
         assert image_dir.exists()
+
+
+class TestCreateThumbnail:
+    def test_nonexistent_file_returns_false(self, tmp_path):
+        result = create_thumbnail(
+            str(tmp_path / "nonexistent.png"),
+            str(tmp_path / "thumb.png"),
+        )
+        assert result is False
+
+    def test_invalid_image_returns_false(self, tmp_path):
+        # Create a file with invalid image data
+        invalid_file = tmp_path / "invalid.png"
+        invalid_file.write_bytes(b"not a valid image")
+
+        result = create_thumbnail(
+            str(invalid_file),
+            str(tmp_path / "thumb.png"),
+        )
+        assert result is False

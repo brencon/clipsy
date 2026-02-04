@@ -13,6 +13,7 @@ A lightweight clipboard history manager for macOS. Runs as a menu bar icon — n
 
 - **Clipboard history** — Automatically captures text, images, and file copies
 - **Image thumbnails** — Visual previews for copied images in the menu
+- **Sensitive data masking** — Auto-detects API keys, passwords, SSNs, credit cards, private keys, and tokens; displays masked previews with 🔒 icon
 - **Search** — Full-text search across all clipboard entries (SQLite FTS5)
 - **Click to re-copy** — Click any entry in the menu to put it back on your clipboard
 - **Deduplication** — Copying the same content twice bumps it to the top instead of creating a duplicate
@@ -54,6 +55,7 @@ Then just use your Mac normally. Every time you copy something, it shows up in t
 ├── ──────────────────
 ├── "Meeting notes for Q3 plan..."
 ├── "https://github.com/example..."
+├── 🔒 "password=••••••••"
 ├── [thumbnail] "[Image: 1920x1080]"
 ├── ... (up to 10 items)
 ├── ──────────────────
@@ -93,21 +95,22 @@ All data is stored in `~/.local/share/clipsy/`:
 .venv/bin/pip install -e ".[dev]"
 
 # Run tests
-.venv/bin/python -m pytest tests/test_utils.py tests/test_storage.py tests/test_monitor.py -v
+.venv/bin/python -m pytest tests/ -v
 
 # Run with coverage
-.venv/bin/python -m pytest tests/test_utils.py tests/test_storage.py tests/test_monitor.py --cov=clipsy --cov-report=term-missing
+.venv/bin/python -m pytest tests/ --cov=clipsy --cov-report=term-missing
 ```
 
 ## Architecture
 
 ```
-NSPasteboard → monitor.py → storage.py (SQLite) → app.py (menu bar UI)
+NSPasteboard → monitor.py → redact.py → storage.py (SQLite) → app.py (menu bar UI)
 ```
 
 - **`app.py`** — `rumps.App` subclass; renders the menu bar dropdown, handles clicks and search
 - **`monitor.py`** — Polls `NSPasteboard.changeCount()` every 0.5s; detects text, images, and file copies
 - **`storage.py`** — SQLite with FTS5 full-text search, SHA-256 deduplication, auto-purge
+- **`redact.py`** — Sensitive data detection and masking (API keys, passwords, SSN, credit cards, tokens)
 - **`config.py`** — Constants, paths, limits
 - **`models.py`** — `ClipboardEntry` dataclass, `ContentType` enum
 - **`utils.py`** — Hashing, text truncation, PNG dimension parsing, thumbnail generation

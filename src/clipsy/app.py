@@ -71,11 +71,13 @@ class ClipsyApp(rumps.App):
 
             pb = NSPasteboard.generalPasteboard()
 
+            copied = False
+
             if entry.content_type == ContentType.TEXT and entry.text_content:
                 pb.clearContents()
                 pb.setString_forType_(entry.text_content, NSPasteboardTypeString)
-                # Update our change count so we don't re-capture what we just set
                 self._monitor.sync_change_count()
+                copied = True
 
             elif entry.content_type == ContentType.IMAGE and entry.image_path:
                 from Foundation import NSData
@@ -84,13 +86,18 @@ class ClipsyApp(rumps.App):
                     pb.clearContents()
                     pb.setData_forType_(img_data, NSPasteboardTypePNG)
                     self._monitor.sync_change_count()
+                    copied = True
 
             elif entry.content_type == ContentType.FILE and entry.text_content:
                 pb.clearContents()
                 pb.setString_forType_(entry.text_content, NSPasteboardTypeString)
                 self._monitor.sync_change_count()
+                copied = True
 
-            rumps.notification("Clipsy", "", "Copied to clipboard", sound=False)
+            if copied:
+                self._storage.update_timestamp(entry_id)
+                self._refresh_menu()
+                rumps.notification("Clipsy", "", "Copied to clipboard", sound=False)
         except Exception:
             logger.exception("Error copying entry to clipboard")
 

@@ -12,6 +12,7 @@ A lightweight clipboard history manager for macOS. Runs as a menu bar icon — n
 ## Features
 
 - **Clipboard history** — Automatically captures text, images, and file copies
+- **Image thumbnails** — Visual previews for copied images in the menu
 - **Search** — Full-text search across all clipboard entries (SQLite FTS5)
 - **Click to re-copy** — Click any entry in the menu to put it back on your clipboard
 - **Deduplication** — Copying the same content twice bumps it to the top instead of creating a duplicate
@@ -53,7 +54,7 @@ Then just use your Mac normally. Every time you copy something, it shows up in t
 ├── ──────────────────
 ├── "Meeting notes for Q3 plan..."
 ├── "https://github.com/example..."
-├── "[Image: 1920x1080]"
+├── [thumbnail] "[Image: 1920x1080]"
 ├── ... (up to 10 items)
 ├── ──────────────────
 ├── Clear History
@@ -109,7 +110,7 @@ NSPasteboard → monitor.py → storage.py (SQLite) → app.py (menu bar UI)
 - **`storage.py`** — SQLite with FTS5 full-text search, SHA-256 deduplication, auto-purge
 - **`config.py`** — Constants, paths, limits
 - **`models.py`** — `ClipboardEntry` dataclass, `ContentType` enum
-- **`utils.py`** — Hashing, text truncation, PNG dimension parsing
+- **`utils.py`** — Hashing, text truncation, PNG dimension parsing, thumbnail generation
 
 ### Dependencies
 

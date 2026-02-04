@@ -4,8 +4,9 @@ from pathlib import Path
 
 from AppKit import NSPasteboard, NSPasteboardTypePNG, NSPasteboardTypeTIFF, NSPasteboardTypeString, NSFilenamesPboardType
 
-from clipsy.config import IMAGE_DIR, MAX_IMAGE_SIZE, MAX_TEXT_SIZE, PREVIEW_LENGTH, THUMBNAIL_SIZE
+from clipsy.config import IMAGE_DIR, MAX_IMAGE_SIZE, MAX_TEXT_SIZE, PREVIEW_LENGTH, REDACT_SENSITIVE, THUMBNAIL_SIZE
 from clipsy.models import ClipboardEntry, ContentType
+from clipsy.redact import detect_sensitive, mask_text
 from clipsy.storage import StorageManager
 from clipsy.utils import compute_hash, create_thumbnail, ensure_dirs, get_image_dimensions, truncate_text
 
@@ -62,15 +63,28 @@ class ClipboardMonitor:
                 text_bytes = text.encode("utf-8")
                 if len(text_bytes) <= MAX_TEXT_SIZE:
                     content_hash = compute_hash(text_bytes)
+                    preview = truncate_text(text, PREVIEW_LENGTH)
+
+                    # Detect sensitive data
+                    is_sensitive = False
+                    masked_preview = None
+                    if REDACT_SENSITIVE:
+                        matches = detect_sensitive(text)
+                        if matches:
+                            is_sensitive = True
+                            masked_preview = truncate_text(mask_text(text, matches), PREVIEW_LENGTH)
+
                     return ClipboardEntry(
                         id=None,
                         content_type=ContentType.TEXT,
                         text_content=text,
                         image_path=None,
-                        preview=truncate_text(text, PREVIEW_LENGTH),
+                        preview=preview,
                         content_hash=content_hash,
                         byte_size=len(text_bytes),
                         created_at=datetime.now(),
+                        is_sensitive=is_sensitive,
+                        masked_preview=masked_preview,
                     )
 
         for img_type in (NSPasteboardTypePNG, NSPasteboardTypeTIFF):

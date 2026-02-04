@@ -22,3 +22,5 @@ class ClipboardEntry:
     pinned: bool = False
     source_app: str | None = None
     thumbnail_path: str | None = None
+    is_sensitive: bool = False
+    masked_preview: str | None = None

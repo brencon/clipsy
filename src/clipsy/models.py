@@ -21,3 +21,4 @@ class ClipboardEntry:
     created_at: datetime
     pinned: bool = False
     source_app: str | None = None
+    thumbnail_path: str | None = None

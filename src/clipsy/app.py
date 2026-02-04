@@ -41,7 +41,15 @@ class ClipsyApp(rumps.App):
             for entry in entries:
                 key = f"{ENTRY_KEY_PREFIX}{entry.id}"
                 self._entry_ids[key] = entry.id
-                item = rumps.MenuItem(entry.preview, callback=self._on_entry_click, key="")
+                if entry.content_type == ContentType.IMAGE and entry.thumbnail_path:
+                    item = rumps.MenuItem(
+                        entry.preview,
+                        callback=self._on_entry_click,
+                        icon=entry.thumbnail_path,
+                        dimensions=(16, 16),
+                    )
+                else:
+                    item = rumps.MenuItem(entry.preview, callback=self._on_entry_click)
                 item._id = key
                 self.menu.add(item)
 
@@ -131,7 +139,15 @@ class ClipsyApp(rumps.App):
             for entry in results:
                 key = f"{ENTRY_KEY_PREFIX}{entry.id}"
                 self._entry_ids[key] = entry.id
-                item = rumps.MenuItem(entry.preview, callback=self._on_entry_click, key="")
+                if entry.content_type == ContentType.IMAGE and entry.thumbnail_path:
+                    item = rumps.MenuItem(
+                        entry.preview,
+                        callback=self._on_entry_click,
+                        icon=entry.thumbnail_path,
+                        dimensions=(16, 16),
+                    )
+                else:
+                    item = rumps.MenuItem(entry.preview, callback=self._on_entry_click)
                 item._id = key
                 self.menu.add(item)
 

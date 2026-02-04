@@ -8,16 +8,17 @@ from clipsy.models import ClipboardEntry, ContentType
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS clipboard_entries (
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    content_type TEXT NOT NULL CHECK(content_type IN ('text', 'image', 'file')),
-    text_content TEXT,
-    image_path   TEXT,
-    preview      TEXT NOT NULL,
-    content_hash TEXT NOT NULL,
-    byte_size    INTEGER NOT NULL DEFAULT 0,
-    created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S', 'now', 'localtime')),
-    pinned       INTEGER NOT NULL DEFAULT 0,
-    source_app   TEXT
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    content_type   TEXT NOT NULL CHECK(content_type IN ('text', 'image', 'file')),
+    text_content   TEXT,
+    image_path     TEXT,
+    preview        TEXT NOT NULL,
+    content_hash   TEXT NOT NULL,
+    byte_size      INTEGER NOT NULL DEFAULT 0,
+    created_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S', 'now', 'localtime')),
+    pinned         INTEGER NOT NULL DEFAULT 0,
+    source_app     TEXT,
+    thumbnail_path TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_created_at ON clipboard_entries(created_at DESC);
@@ -54,13 +55,21 @@ class StorageManager:
 
     def init_db(self) -> None:
         self._conn.executescript(SCHEMA)
+        self._migrate_schema()
         self._conn.commit()
+
+    def _migrate_schema(self) -> None:
+        """Add new columns to existing databases."""
+        cursor = self._conn.execute("PRAGMA table_info(clipboard_entries)")
+        columns = {row[1] for row in cursor.fetchall()}
+        if "thumbnail_path" not in columns:
+            self._conn.execute("ALTER TABLE clipboard_entries ADD COLUMN thumbnail_path TEXT")
 
     def add_entry(self, entry: ClipboardEntry) -> int:
         cursor = self._conn.execute(
             """INSERT INTO clipboard_entries
-               (content_type, text_content, image_path, preview, content_hash, byte_size, created_at, pinned, source_app)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               (content_type, text_content, image_path, preview, content_hash, byte_size, created_at, pinned, source_app, thumbnail_path)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 entry.content_type.value,
                 entry.text_content,
@@ -71,6 +80,7 @@ class StorageManager:
                 entry.created_at.isoformat(),
                 int(entry.pinned),
                 entry.source_app,
+                entry.thumbnail_path,
             ),
         )
         self._conn.commit()
@@ -105,10 +115,15 @@ class StorageManager:
 
     def delete_entry(self, entry_id: int) -> None:
         entry = self.get_entry(entry_id)
-        if entry and entry.image_path:
-            path = Path(entry.image_path)
-            if path.exists():
-                path.unlink()
+        if entry:
+            if entry.image_path:
+                path = Path(entry.image_path)
+                if path.exists():
+                    path.unlink()
+            if entry.thumbnail_path:
+                thumb = Path(entry.thumbnail_path)
+                if thumb.exists():
+                    thumb.unlink()
         self._conn.execute("DELETE FROM clipboard_entries WHERE id = ?", (entry_id,))
         self._conn.commit()
 
@@ -130,7 +145,7 @@ class StorageManager:
     def purge_old(self, keep_count: int | None = None) -> int:
         keep = keep_count if keep_count is not None else MAX_ENTRIES
         rows = self._conn.execute(
-            """SELECT id, image_path FROM clipboard_entries
+            """SELECT id, image_path, thumbnail_path FROM clipboard_entries
                WHERE pinned = 0
                ORDER BY created_at DESC
                LIMIT -1 OFFSET ?""",
@@ -143,6 +158,10 @@ class StorageManager:
                 path = Path(row["image_path"])
                 if path.exists():
                     path.unlink()
+            if row["thumbnail_path"]:
+                thumb = Path(row["thumbnail_path"])
+                if thumb.exists():
+                    thumb.unlink()
             self._conn.execute("DELETE FROM clipboard_entries WHERE id = ?", (row["id"],))
             deleted += 1
 
@@ -164,12 +183,17 @@ class StorageManager:
 
     def clear_all(self) -> None:
         rows = self._conn.execute(
-            "SELECT image_path FROM clipboard_entries WHERE image_path IS NOT NULL"
+            "SELECT image_path, thumbnail_path FROM clipboard_entries WHERE image_path IS NOT NULL OR thumbnail_path IS NOT NULL"
         ).fetchall()
         for row in rows:
-            path = Path(row["image_path"])
-            if path.exists():
-                path.unlink()
+            if row["image_path"]:
+                path = Path(row["image_path"])
+                if path.exists():
+                    path.unlink()
+            if row["thumbnail_path"]:
+                thumb = Path(row["thumbnail_path"])
+                if thumb.exists():
+                    thumb.unlink()
         self._conn.execute("DELETE FROM clipboard_entries")
         self._conn.commit()
 
@@ -197,6 +221,8 @@ class StorageManager:
         return " ".join(quoted)
 
     def _row_to_entry(self, row: sqlite3.Row) -> ClipboardEntry:
+        # Handle thumbnail_path which may not exist in older databases
+        thumbnail_path = row["thumbnail_path"] if "thumbnail_path" in row.keys() else None
         return ClipboardEntry(
             id=row["id"],
             content_type=ContentType(row["content_type"]),
@@ -208,4 +234,5 @@ class StorageManager:
             created_at=datetime.fromisoformat(row["created_at"]),
             pinned=bool(row["pinned"]),
             source_app=row["source_app"],
+            thumbnail_path=thumbnail_path,
         )

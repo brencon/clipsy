@@ -1,0 +1,56 @@
+# Claude Code Review GitHub Action
+#
+# This workflow automatically reviews PRs using Claude Code.
+#
+# SETUP:
+# 1. Run `/install-github-app` in Claude Code to set up the GitHub integration
+# 2. Rename this file to `claude-code-review.yaml` to activate
+# 3. Customize the prompt below for your project's needs
+#
+# The default Claude review can be verbose and nitpicky.
+# The prompt below focuses on what matters most: bugs and security.
+
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Claude Code Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          # IMPORTANT: Customize this prompt for your project
+          # The default is very verbose - this focuses on critical issues only
+          prompt: |
+            Review this pull request for bugs and security issues only.
+
+            Focus on:
+            - Logic errors and edge cases
+            - Security vulnerabilities (injection, XSS, auth issues, etc.)
+            - Data validation problems
+            - Race conditions or concurrency issues
+            - Resource leaks
+
+            Do NOT comment on:
+            - Code style or formatting (we have linters for that)
+            - Naming suggestions
+            - Minor refactoring opportunities
+            - Documentation improvements
+
+            Be concise. Only report actual bugs or potential vulnerabilities.
+            If the code looks good, just say "LGTM - no bugs or security issues found."
+
+          # Optional: Limit which files to review
+          # include_patterns: |
+          #   src/**/*.ts
+          #   src/**/*.tsx
+
+          # Optional: Exclude certain files
+          # exclude_patterns: |
+          #   **/*.test.ts
+          #   **/*.spec.ts
+          #   **/generated/**

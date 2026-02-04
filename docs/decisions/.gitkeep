@@ -1,0 +1,17 @@
+# Architecture Decision Records (ADRs)
+
+Store architecture decision records here using the format:
+
+## ADR-[NUMBER]: [TITLE]
+
+**Status**: [Proposed | Accepted | Deprecated | Superseded]
+**Date**: [YYYY-MM-DD]
+
+### Context
+What is the issue that we're seeing that is motivating this decision?
+
+### Decision
+What is the change that we're proposing and/or doing?
+
+### Consequences
+What becomes easier or more difficult because of this change?

@@ -1,0 +1,19 @@
+# Agent Examples Dependencies
+
+# Claude Code SDK (when using programmatic access)
+# claude-code-sdk>=0.1.0
+
+# Async support
+asyncio-compat>=0.1.0
+
+# YAML configuration
+pyyaml>=6.0
+
+# Environment variables
+python-dotenv>=1.0.0
+
+# HTTP client (for MCP servers)
+httpx>=0.25.0
+
+# JSON schema validation
+jsonschema>=4.20.0

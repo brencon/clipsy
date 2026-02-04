@@ -1,0 +1,45 @@
+# References Directory
+
+Store external references, whitepapers, and research materials here.
+These documents provide Claude with additional context when needed.
+
+## Small Files (Markdown, Text)
+
+Reference from CLAUDE.md using: @docs/references/[filename]
+
+## Large PDFs
+
+For PDFs too large for Claude Code to read directly, use the PDF parser:
+
+```bash
+# Parse a PDF into semantic markdown
+/parse-pdf docs/references/large-spec.pdf
+
+# Or via CLI
+python scripts/pdf-parser/parse_pdf.py docs/references/large-spec.pdf
+```
+
+This creates a structured knowledge base:
+
+```
+docs/references/large-spec/
+├── _index.md                    # Overview and navigation
+├── 01-introduction/
+│   ├── overview.md
+│   └── images/
+├── 02-topic/
+│   ├── subtopic.md
+│   └── images/
+└── ...
+```
+
+Then reference in CLAUDE.md:
+```markdown
+- For spec documentation, see: @docs/references/large-spec/_index.md
+```
+
+## Tips
+
+- Keep original PDFs here (or use git-lfs for very large files)
+- Parsed markdown directories are version controlled
+- Re-run the parser if the source PDF is updated

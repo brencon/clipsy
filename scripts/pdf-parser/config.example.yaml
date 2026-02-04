@@ -1,0 +1,45 @@
+# PDF Parser Configuration
+# Copy to config.yaml and customize as needed
+
+# Chunk extraction settings
+extraction:
+  # Maximum tokens per chunk (smaller = more chunks, better for complex docs)
+  chunk_size: 2000
+  # Token overlap between chunks (helps maintain context)
+  chunk_overlap: 100
+  # Minimum image dimensions to extract (filters out tiny icons)
+  min_image_width: 50
+  min_image_height: 50
+
+# LLM provider settings
+llm:
+  # Primary provider: "anthropic" or "openai"
+  provider: anthropic
+
+  # Model overrides (optional - uses provider defaults if not set)
+  # anthropic_model: claude-sonnet-4-20250514
+  # openai_model: gpt-4o
+
+# Output settings
+output:
+  # Default output directory (relative to project root)
+  # Use {pdf_name} as placeholder for PDF filename without extension
+  default_dir: "docs/references/{pdf_name}"
+
+  # Include source page numbers in markdown comments
+  include_page_refs: true
+
+  # Generate _index.md with navigation
+  generate_index: true
+
+# Image handling
+images:
+  # Extract images from PDF
+  extract: true
+  # Supported formats (images in other formats will be converted)
+  formats:
+    - png
+    - jpg
+    - jpeg
+  # Maximum image dimension (larger images will be resized)
+  max_dimension: 2000

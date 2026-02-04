@@ -1,0 +1,75 @@
+# Autonomous Task Agent Configuration
+# Copy to config.yaml and customize
+
+# Agent settings
+agent:
+  # Model to use for the agent
+  model: claude-sonnet-4-20250514
+
+  # Maximum tokens per response
+  max_tokens: 4096
+
+  # Timeout for each agent call (seconds)
+  timeout: 300
+
+# State management
+state:
+  # Progress log file
+  progress_file: progress.txt
+
+  # Feature tracking file
+  feature_file: feature_list.json
+
+  # Auto-commit after each feature
+  auto_commit: true
+
+  # Commit message prefix
+  commit_prefix: "feat(agent):"
+
+# Security settings
+security:
+  # Enable command validation
+  validate_commands: true
+
+  # Additional allowed commands (added to defaults)
+  extra_allowed_commands: []
+    # - docker
+    # - kubectl
+
+  # Additional blocked patterns (added to defaults)
+  extra_blocked_patterns: []
+    # - "docker rm"
+
+  # Allowed filesystem paths (relative to project root)
+  allowed_paths:
+    - src/
+    - tests/
+    - docs/
+
+  # Forbidden paths
+  forbidden_paths:
+    - .env
+    - .git/config
+    - node_modules/
+
+# Session settings
+session:
+  # Resume previous session if available
+  auto_resume: true
+
+  # Maximum session duration (minutes, 0 = unlimited)
+  max_duration: 60
+
+  # Checkpoint interval (features completed before commit)
+  checkpoint_interval: 1
+
+# Logging
+logging:
+  # Log level: DEBUG, INFO, WARNING, ERROR
+  level: INFO
+
+  # Log file (empty = stdout only)
+  file: agent.log
+
+  # Include timestamps
+  timestamps: true

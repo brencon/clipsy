@@ -1,0 +1,17 @@
+# LLM Council Dependencies
+# ========================
+# Install with: pip install -r requirements.txt
+
+# Core dependencies (required)
+httpx>=0.25.0          # Async HTTP client for API calls
+python-dotenv>=1.0.0   # Load environment variables from .env
+pyyaml>=6.0            # YAML configuration parsing
+
+# Optional: Provider SDKs
+# -----------------------
+# These are optional - the council uses direct HTTP calls by default.
+# Install if you prefer using official SDKs or need additional features.
+
+# anthropic>=0.30.0    # Official Anthropic SDK
+# openai>=1.0.0        # Official OpenAI SDK
+# google-generativeai>=0.5.0  # Official Google AI SDK

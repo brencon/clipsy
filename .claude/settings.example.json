@@ -1,0 +1,92 @@
+{
+  "$schema": "https://raw.githubusercontent.com/anthropics/claude-code/main/schema/settings.json",
+
+  "// INSTRUCTIONS": "Copy this to settings.json and customize for your project",
+  "// NOTE": "settings.local.json is gitignored for machine-specific permissions (auto-populated during sessions)",
+
+  "permissions": {
+    "allow": [
+      "// Read operations - safe to auto-approve",
+      "Read(*)",
+      "Glob(*)",
+      "Grep(*)",
+
+      "// Git read operations",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git branch:*)",
+      "Bash(git show:*)",
+
+      "// Common safe commands - uncomment as needed",
+      "// Bash(npm test:*)",
+      "// Bash(npm run lint:*)",
+      "// Bash(npm run build:*)",
+      "// Bash(npx tsc --noEmit:*)",
+      "// Bash(npx prettier --check:*)",
+
+      "// Python projects",
+      "// Bash(pytest:*)",
+      "// Bash(python -m mypy:*)",
+      "// Bash(ruff check:*)",
+
+      "// LLM Council (optional) - consult multiple AI models",
+      "// Bash(python scripts/llm-council/council.py:*)"
+    ],
+    "deny": [
+      "// Dangerous operations to always block",
+      "// Bash(rm -rf:*)",
+      "// Bash(git push --force:*)",
+      "// Bash(DROP TABLE:*)"
+    ]
+  },
+
+  "hooks": {
+    "// HOOKS DOCUMENTATION": {
+      "PreToolUse": "Runs BEFORE a tool executes. Return non-zero to block.",
+      "PostToolUse": "Runs AFTER a tool executes. Good for validation.",
+      "Notification": "Runs when Claude wants to notify (e.g., task complete)."
+    },
+
+    "PreToolUse": [
+      {
+        "// description": "Format files before edits are accepted",
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx prettier --write $CLAUDE_FILE_PATH 2>/dev/null || true"
+          }
+        ]
+      }
+    ],
+
+    "PostToolUse": [
+      {
+        "// description": "Type-check TypeScript files after edits",
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [[ $CLAUDE_FILE_PATH == *.ts ]] || [[ $CLAUDE_FILE_PATH == *.tsx ]]; then npx tsc --noEmit 2>&1 | head -20; fi"
+          }
+        ]
+      },
+      {
+        "// description": "Lint Python files after edits",
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [[ $CLAUDE_FILE_PATH == *.py ]]; then ruff check $CLAUDE_FILE_PATH 2>&1 | head -10; fi"
+          }
+        ]
+      }
+    ]
+  },
+
+  "env": {
+    "// description": "Environment variables available to hooks and commands",
+    "// EXAMPLE_API_URL": "https://api.example.com"
+  }
+}

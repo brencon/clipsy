@@ -1,0 +1,129 @@
+# ================================
+# Claude Code Template .gitignore
+# ================================
+
+# -------------------------------
+# Claude Code Local Settings
+# -------------------------------
+# Local settings are machine-specific and should not be committed
+.claude/settings.local.json
+
+# -------------------------------
+# Environment & Secrets
+# -------------------------------
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+credentials.json
+secrets.json
+.secrets/
+
+# -------------------------------
+# Dependencies
+# -------------------------------
+node_modules/
+vendor/
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pip-cache/
+
+# -------------------------------
+# Build Outputs
+# -------------------------------
+dist/
+build/
+out/
+.next/
+.nuxt/
+.output/
+*.egg-info/
+*.egg
+*.whl
+
+# -------------------------------
+# IDE & Editor
+# -------------------------------
+.idea/
+.vscode/settings.json
+.vscode/launch.json
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# Note: .vscode/extensions.json and .vscode/tasks.json
+# may be worth committing for team consistency
+
+# -------------------------------
+# OS Generated
+# -------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# -------------------------------
+# Logs & Debugging
+# -------------------------------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# -------------------------------
+# Testing & Coverage
+# -------------------------------
+coverage/
+.nyc_output/
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# -------------------------------
+# Temporary Files
+# -------------------------------
+tmp/
+temp/
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# -------------------------------
+# Package Manager Locks
+# -------------------------------
+# Uncomment the ones you DON'T use:
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# -------------------------------
+# PDF Parser
+# -------------------------------
+# Temp directories created during PDF processing
+pdf_parser_*/
+
+# Original PDFs in references (optional - uncomment if you want to gitignore them)
+# Large PDFs should use git-lfs or be stored externally
+# docs/references/**/*.pdf
+
+# PDF parser local config (if customized)
+scripts/pdf-parser/config.yaml
+
+# -------------------------------
+# Project Specific
+# -------------------------------
+# Add project-specific ignores below this line

@@ -1,0 +1,17 @@
+# PDF Parser - Semantic Document Decomposition
+# Install: pip install -r requirements.txt
+
+# PDF Processing
+pymupdf>=1.24.0
+pymupdf4llm>=0.0.10
+
+# Token counting for chunking
+tiktoken>=0.5.0
+
+# LLM Providers
+anthropic>=0.39.0
+openai>=1.0.0
+
+# Configuration
+python-dotenv>=1.0.0
+pyyaml>=6.0.0

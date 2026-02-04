@@ -1,0 +1,120 @@
+# LLM Council Configuration
+# ==========================
+# Copy this file to config.yaml and customize for your project.
+#
+# Based on: https://github.com/karpathy/llm-council
+
+# Council Members
+# ---------------
+# Define which LLM models participate in council deliberations.
+# You need at least 2 members with valid API keys for the council to function.
+#
+# Supported providers:
+#   - anthropic: Claude models (requires ANTHROPIC_API_KEY)
+#   - openai: GPT models (requires OPENAI_API_KEY)
+#   - google: Gemini models (requires GOOGLE_AI_API_KEY)
+#   - xai: Grok models (requires XAI_API_KEY)
+
+council:
+  members:
+    # Anthropic Claude
+    - provider: anthropic
+      model: claude-sonnet-4-20250514
+      name: "Claude Sonnet"
+
+    # OpenAI GPT
+    - provider: openai
+      model: gpt-4o
+      name: "GPT-4o"
+
+    # Google Gemini
+    - provider: google
+      model: gemini-2.0-flash
+      name: "Gemini 2.0"
+
+    # xAI Grok (uncomment if you have access)
+    # - provider: xai
+    #   model: grok-2
+    #   name: "Grok 2"
+
+  # Chairman Model
+  # --------------
+  # The chairman synthesizes all council responses into a final recommendation.
+  # Choose a model you trust for balanced, thoughtful synthesis.
+  chairman:
+    provider: anthropic
+    model: claude-sonnet-4-20250514
+    name: "Chairman (Claude)"
+
+# Cost Optimization
+# -----------------
+# Control costs by using cheaper/faster models for certain stages.
+cost_optimization:
+  # Use fast models for peer review stage (Stage 2)
+  # This significantly reduces costs while maintaining quality for synthesis
+  use_fast_models_for_review: true
+
+  # Override models for cost-sensitive operations
+  # These are used when use_fast_models_for_review is true
+  fast_model_overrides:
+    anthropic: claude-3-5-haiku-latest    # ~10x cheaper than Opus
+    openai: gpt-4o-mini                    # ~15x cheaper than GPT-4o
+    google: gemini-2.0-flash               # Often has free tier
+    xai: grok-2                            # Use same model if no cheaper option
+
+# Default Behavior
+# ----------------
+defaults:
+  # Default deliberation mode:
+  #   - quick: Just gather responses (fastest, cheapest)
+  #   - full: Full three-stage process (most thorough)
+  #   - vote: Focus on peer review and ranking
+  mode: full
+
+  # Timeout for individual API calls (seconds)
+  timeout_seconds: 60
+
+  # Maximum retries for failed API calls
+  max_retries: 2
+
+
+# Example Alternative Configurations
+# ==================================
+
+# Budget Configuration (minimal cost)
+# -----------------------------------
+# council:
+#   members:
+#     - provider: anthropic
+#       model: claude-3-5-haiku-latest
+#       name: "Claude Haiku"
+#     - provider: openai
+#       model: gpt-4o-mini
+#       name: "GPT-4o Mini"
+#   chairman:
+#     provider: anthropic
+#     model: claude-3-5-haiku-latest
+# cost_optimization:
+#   use_fast_models_for_review: true
+
+# Premium Configuration (best quality)
+# ------------------------------------
+# council:
+#   members:
+#     - provider: anthropic
+#       model: claude-opus-4-20250514
+#       name: "Claude Opus"
+#     - provider: openai
+#       model: gpt-4o
+#       name: "GPT-4o"
+#     - provider: google
+#       model: gemini-1.5-pro
+#       name: "Gemini Pro"
+#     - provider: xai
+#       model: grok-2
+#       name: "Grok 2"
+#   chairman:
+#     provider: anthropic
+#     model: claude-opus-4-20250514
+# cost_optimization:
+#   use_fast_models_for_review: false

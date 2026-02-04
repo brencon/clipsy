@@ -39,14 +39,14 @@ python3 -m venv .venv
 ## Usage
 
 ```bash
-# Run clipsy (a clipboard icon appears in your menu bar)
+# Run clipsy (a scissors icon appears in your menu bar)
 .venv/bin/python -m clipsy
 ```
 
 Then just use your Mac normally. Every time you copy something, it shows up in the Clipsy menu:
 
 ```
-[📋 Icon]
+[✂️ Icon]
 ├── Clipsy - Clipboard History
 ├── ──────────────────
 ├── Search...
@@ -54,7 +54,7 @@ Then just use your Mac normally. Every time you copy something, it shows up in t
 ├── "Meeting notes for Q3 plan..."
 ├── "https://github.com/example..."
 ├── "[Image: 1920x1080]"
-├── ... (up to 25 items)
+├── ... (up to 10 items)
 ├── ──────────────────
 ├── Clear History
 └── Quit Clipsy

@@ -1,10 +1,10 @@
 # Clipsy
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)
 ![Platform: macOS](https://img.shields.io/badge/platform-macOS-lightgrey.svg)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
-![Tests: 46 passed](https://img.shields.io/badge/tests-46%20passed-brightgreen.svg)
+![Tests: 59 passed](https://img.shields.io/badge/tests-59%20passed-brightgreen.svg)
 ![Coverage: 58%](https://img.shields.io/badge/coverage-58%25-yellow.svg)
 
 A lightweight clipboard history manager for macOS. Runs as a menu bar icon — no admin privileges, no code signing, no App Store required.

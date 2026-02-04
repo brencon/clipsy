@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/brencon/clipsy/actions/workflows/ci.yml/badge.svg)](https://github.com/brencon/clipsy/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/brencon/clipsy)](https://github.com/brencon/clipsy/releases)
-![Coverage](https://img.shields.io/badge/coverage-57%25-yellow.svg)
+[![codecov](https://codecov.io/gh/brencon/clipsy/branch/main/graph/badge.svg)](https://codecov.io/gh/brencon/clipsy)
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)
 ![Platform: macOS](https://img.shields.io/badge/platform-macOS-lightgrey.svg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)

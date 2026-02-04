@@ -1,6 +1,7 @@
 import struct
+from unittest.mock import patch
 
-from clipsy.utils import compute_hash, get_image_dimensions, truncate_text
+from clipsy.utils import compute_hash, ensure_dirs, get_image_dimensions, truncate_text
 
 
 class TestComputeHash:
@@ -66,3 +67,26 @@ class TestGetImageDimensions:
 
     def test_empty(self):
         assert get_image_dimensions(b"") == (0, 0)
+
+
+class TestEnsureDirs:
+    def test_creates_directories(self, tmp_path):
+        data_dir = tmp_path / "data"
+        image_dir = data_dir / "images"
+
+        with patch("clipsy.utils.DATA_DIR", data_dir), patch("clipsy.utils.IMAGE_DIR", image_dir):
+            ensure_dirs()
+
+        assert data_dir.exists()
+        assert image_dir.exists()
+
+    def test_idempotent(self, tmp_path):
+        data_dir = tmp_path / "data"
+        image_dir = data_dir / "images"
+
+        with patch("clipsy.utils.DATA_DIR", data_dir), patch("clipsy.utils.IMAGE_DIR", image_dir):
+            ensure_dirs()
+            ensure_dirs()  # Should not raise
+
+        assert data_dir.exists()
+        assert image_dir.exists()

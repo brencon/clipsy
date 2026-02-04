@@ -142,6 +142,13 @@ class StorageManager:
         )
         self._conn.commit()
 
+    def update_thumbnail_path(self, entry_id: int, thumbnail_path: str) -> None:
+        self._conn.execute(
+            "UPDATE clipboard_entries SET thumbnail_path = ? WHERE id = ?",
+            (thumbnail_path, entry_id),
+        )
+        self._conn.commit()
+
     def purge_old(self, keep_count: int | None = None) -> int:
         keep = keep_count if keep_count is not None else MAX_ENTRIES
         rows = self._conn.execute(

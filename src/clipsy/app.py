@@ -3,11 +3,11 @@ import logging
 import rumps
 
 from clipsy import __version__
-from clipsy.config import DB_PATH, MENU_DISPLAY_COUNT, POLL_INTERVAL
-from clipsy.models import ContentType
+from clipsy.config import DB_PATH, IMAGE_DIR, MENU_DISPLAY_COUNT, POLL_INTERVAL, THUMBNAIL_SIZE
+from clipsy.models import ClipboardEntry, ContentType
 from clipsy.monitor import ClipboardMonitor
 from clipsy.storage import StorageManager
-from clipsy.utils import ensure_dirs
+from clipsy.utils import create_thumbnail, ensure_dirs
 
 logger = logging.getLogger(__name__)
 
@@ -41,13 +41,18 @@ class ClipsyApp(rumps.App):
             for entry in entries:
                 key = f"{ENTRY_KEY_PREFIX}{entry.id}"
                 self._entry_ids[key] = entry.id
-                if entry.content_type == ContentType.IMAGE and entry.thumbnail_path:
-                    item = rumps.MenuItem(
-                        entry.preview,
-                        callback=self._on_entry_click,
-                        icon=entry.thumbnail_path,
-                        dimensions=(16, 16),
-                    )
+                if entry.content_type == ContentType.IMAGE:
+                    thumb_path = self._ensure_thumbnail(entry)
+                    if thumb_path:
+                        item = rumps.MenuItem(
+                            entry.preview,
+                            callback=self._on_entry_click,
+                            icon=thumb_path,
+                            dimensions=(16, 16),
+                            template=False,
+                        )
+                    else:
+                        item = rumps.MenuItem(entry.preview, callback=self._on_entry_click)
                 else:
                     item = rumps.MenuItem(entry.preview, callback=self._on_entry_click)
                 item._id = key
@@ -57,6 +62,30 @@ class ClipsyApp(rumps.App):
         self.menu.add(rumps.MenuItem("Clear History", callback=self._on_clear))
         self.menu.add(None)  # separator
         self.menu.add(rumps.MenuItem("Quit Clipsy", callback=self._on_quit))
+
+    def _ensure_thumbnail(self, entry: ClipboardEntry) -> str | None:
+        """Ensure a thumbnail exists for an image entry, generating if needed."""
+        if entry.thumbnail_path:
+            return entry.thumbnail_path
+
+        if not entry.image_path:
+            return None
+
+        # Generate thumbnail for legacy entries
+        from pathlib import Path
+
+        image_path = Path(entry.image_path)
+        if not image_path.exists():
+            return None
+
+        thumb_filename = image_path.stem + "_thumb.png"
+        thumb_path = IMAGE_DIR / thumb_filename
+
+        if thumb_path.exists() or create_thumbnail(str(image_path), str(thumb_path), THUMBNAIL_SIZE):
+            self._storage.update_thumbnail_path(entry.id, str(thumb_path))
+            return str(thumb_path)
+
+        return None
 
     def _refresh_menu(self) -> None:
         self._build_menu()
@@ -139,13 +168,18 @@ class ClipsyApp(rumps.App):
             for entry in results:
                 key = f"{ENTRY_KEY_PREFIX}{entry.id}"
                 self._entry_ids[key] = entry.id
-                if entry.content_type == ContentType.IMAGE and entry.thumbnail_path:
-                    item = rumps.MenuItem(
-                        entry.preview,
-                        callback=self._on_entry_click,
-                        icon=entry.thumbnail_path,
-                        dimensions=(16, 16),
-                    )
+                if entry.content_type == ContentType.IMAGE:
+                    thumb_path = self._ensure_thumbnail(entry)
+                    if thumb_path:
+                        item = rumps.MenuItem(
+                            entry.preview,
+                            callback=self._on_entry_click,
+                            icon=thumb_path,
+                            dimensions=(16, 16),
+                            template=False,
+                        )
+                    else:
+                        item = rumps.MenuItem(entry.preview, callback=self._on_entry_click)
                 else:
                     item = rumps.MenuItem(entry.preview, callback=self._on_entry_click)
                 item._id = key

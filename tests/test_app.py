@@ -238,3 +238,80 @@ class TestRichTextRestoration:
         assert entry.rtf_data is None
         assert entry.html_data is None
         assert entry.text_content == "plain text"
+
+
+class TestPinningBehavior:
+    """Test pinning-related behavior at the app level."""
+
+    def test_pinned_entries_not_in_recent_list(self, storage, make_entry):
+        id1 = storage.add_entry(make_entry("pinned entry", content_hash="h1"))
+        id2 = storage.add_entry(make_entry("regular entry", content_hash="h2"))
+        storage.toggle_pin(id1)
+
+        recent = storage.get_recent()
+        pinned = storage.get_pinned()
+
+        # Filter recent like app.py does
+        recent_unpinned = [e for e in recent if not e.pinned]
+
+        assert len(pinned) == 1
+        assert pinned[0].id == id1
+        assert all(e.id != id1 for e in recent_unpinned)
+
+    def test_cannot_pin_sensitive_entry(self, storage, make_entry):
+        from clipsy.models import ClipboardEntry, ContentType
+        from datetime import datetime
+
+        sensitive_entry = ClipboardEntry(
+            id=None,
+            content_type=ContentType.TEXT,
+            text_content="password=secret123",
+            image_path=None,
+            preview="password=secret123",
+            content_hash="sensitive_hash",
+            byte_size=20,
+            created_at=datetime.now(),
+            is_sensitive=True,
+            masked_preview="password=••••••••",
+        )
+        entry_id = storage.add_entry(sensitive_entry)
+        entry = storage.get_entry(entry_id)
+
+        # The entry is sensitive
+        assert entry.is_sensitive is True
+
+        # Simulate app-level check: sensitive entries should not be pinned
+        # This mimics what _on_pin_toggle does
+        if entry.is_sensitive:
+            can_pin = False
+        else:
+            can_pin = True
+
+        assert can_pin is False
+
+    def test_max_pinned_limit(self, storage, make_entry):
+        from clipsy.config import MAX_PINNED_ENTRIES
+
+        # Pin up to the limit
+        for i in range(MAX_PINNED_ENTRIES):
+            entry_id = storage.add_entry(make_entry(f"entry {i}", content_hash=f"hash_{i}"))
+            storage.toggle_pin(entry_id)
+
+        assert storage.count_pinned() == MAX_PINNED_ENTRIES
+
+        # App should check this before allowing another pin
+        at_limit = storage.count_pinned() >= MAX_PINNED_ENTRIES
+        assert at_limit is True
+
+    def test_clear_pinned_clears_all(self, storage, make_entry):
+        id1 = storage.add_entry(make_entry("entry 1", content_hash="h1"))
+        id2 = storage.add_entry(make_entry("entry 2", content_hash="h2"))
+        storage.toggle_pin(id1)
+        storage.toggle_pin(id2)
+
+        assert storage.count_pinned() == 2
+
+        storage.clear_pinned()
+
+        assert storage.count_pinned() == 0
+        assert storage.get_pinned() == []

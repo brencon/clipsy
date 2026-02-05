@@ -160,9 +160,13 @@ class TestCLIParsing:
 
 class TestRunApp:
     @patch("clipsy.app.ClipsyApp")
+    @patch("clipsy.__main__.logging.StreamHandler")
+    @patch("clipsy.__main__.logging.FileHandler")
     @patch("clipsy.__main__.logging.basicConfig")
     @patch("clipsy.__main__.ensure_dirs")
-    def test_run_app_initializes_and_runs(self, mock_dirs, mock_logging, mock_app_class):
+    def test_run_app_initializes_and_runs(
+        self, mock_dirs, mock_logging, mock_file_handler, mock_stream_handler, mock_app_class
+    ):
         from clipsy.__main__ import run_app
 
         mock_app = MagicMock()
@@ -176,9 +180,13 @@ class TestRunApp:
         mock_app.run.assert_called_once()
 
     @patch("clipsy.app.ClipsyApp")
+    @patch("clipsy.__main__.logging.StreamHandler")
+    @patch("clipsy.__main__.logging.FileHandler")
     @patch("clipsy.__main__.logging.basicConfig")
     @patch("clipsy.__main__.ensure_dirs")
-    def test_run_app_configures_logging(self, mock_dirs, mock_logging, mock_app_class):
+    def test_run_app_configures_logging(
+        self, mock_dirs, mock_logging, mock_file_handler, mock_stream_handler, mock_app_class
+    ):
         from clipsy.__main__ import run_app
 
         mock_app_class.return_value = MagicMock()

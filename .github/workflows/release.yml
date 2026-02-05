@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write  # Required for PyPI trusted publishing
 
 jobs:
   release:
@@ -29,6 +30,7 @@ jobs:
         run: pip install python-semantic-release
 
       - name: Python Semantic Release
+        id: release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -38,5 +40,24 @@ jobs:
           # Run semantic-release which handles version bump, commit, tag, and GitHub release
           semantic-release version
 
+          # Check if a new version was created
+          if git diff --name-only HEAD~1 | grep -q "pyproject.toml"; then
+            echo "new_release=true" >> $GITHUB_OUTPUT
+          else
+            echo "new_release=false" >> $GITHUB_OUTPUT
+          fi
+
           # Push changes if any were made
           git push origin main --tags || true
+
+      - name: Build package
+        if: steps.release.outputs.new_release == 'true'
+        run: |
+          pip install build
+          python -m build
+
+      - name: Publish to PyPI
+        if: steps.release.outputs.new_release == 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        # Uses trusted publishing - no token needed
+        # Configure at: https://pypi.org/manage/account/publishing/

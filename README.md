@@ -1,7 +1,7 @@
 # Clipsy
 
+[![PyPI](https://img.shields.io/pypi/v/clipsy)](https://pypi.org/project/clipsy/)
 [![CI](https://github.com/brencon/clipsy/actions/workflows/ci.yml/badge.svg)](https://github.com/brencon/clipsy/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/brencon/clipsy)](https://github.com/brencon/clipsy/releases)
 [![codecov](https://codecov.io/gh/brencon/clipsy/branch/main/graph/badge.svg)](https://codecov.io/gh/brencon/clipsy)
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)
 ![Platform: macOS](https://img.shields.io/badge/platform-macOS-lightgrey.svg)
@@ -28,12 +28,17 @@ A lightweight clipboard history manager for macOS. Runs as a menu bar icon — n
 
 ## Installation
 
+### Via pip (recommended)
+
 ```bash
-# Clone the repo
+pip install clipsy
+```
+
+### From source
+
+```bash
 git clone https://github.com/brencon/clipsy.git
 cd clipsy
-
-# Create virtual environment and install
 python3 -m venv .venv
 .venv/bin/pip install -e .
 ```
@@ -42,7 +47,7 @@ python3 -m venv .venv
 
 ```bash
 # Run clipsy (a scissors icon appears in your menu bar)
-.venv/bin/python -m clipsy
+clipsy
 ```
 
 Then just use your Mac normally. Every time you copy something, it shows up in the Clipsy menu:

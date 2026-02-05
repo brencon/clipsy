@@ -6,10 +6,35 @@ build-backend = "setuptools.build_meta"
 name = "clipsy"
 version = "1.4.0"
 description = "Lightweight clipboard history manager for macOS"
+readme = "README.md"
+license = {text = "MIT"}
 requires-python = ">=3.10"
+authors = [
+    {name = "Brendan Conrad", email = "brendan.conrad@gmail.com"},
+]
+keywords = ["clipboard", "macos", "menu-bar", "history", "productivity"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: MacOS X",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Desktop Environment",
+    "Topic :: Utilities",
+]
 dependencies = [
     "rumps>=0.4.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/brencon/clipsy"
+Repository = "https://github.com/brencon/clipsy"
+Issues = "https://github.com/brencon/clipsy/issues"
 
 [project.optional-dependencies]
 dev = [

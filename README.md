@@ -28,7 +28,14 @@ A lightweight clipboard history manager for macOS. Runs as a menu bar icon — n
 
 ## Installation
 
-### Via pipx (recommended)
+### Via Homebrew (recommended)
+
+```bash
+brew install brencon/clipsy/clipsy
+clipsy
+```
+
+### Via pipx
 
 ```bash
 brew install pipx

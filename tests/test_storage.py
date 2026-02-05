@@ -440,6 +440,22 @@ class TestPinnedEntries:
         assert pinned[0].id == id2  # newer first
         assert pinned[1].id == id1
 
+    def test_clear_pinned(self, storage, make_entry):
+        id1 = storage.add_entry(make_entry("entry 1"))
+        id2 = storage.add_entry(make_entry("entry 2", content_hash="hash2"))
+        id3 = storage.add_entry(make_entry("entry 3", content_hash="hash3"))
+        storage.toggle_pin(id1)
+        storage.toggle_pin(id2)
+
+        assert storage.count_pinned() == 2
+
+        storage.clear_pinned()
+
+        assert storage.count_pinned() == 0
+        assert storage.get_entry(id1).pinned is False
+        assert storage.get_entry(id2).pinned is False
+        assert storage.get_entry(id3).pinned is False  # was never pinned
+
 
 class TestRichTextMigration:
     def test_migrate_adds_rtf_and_html_columns(self, tmp_path):

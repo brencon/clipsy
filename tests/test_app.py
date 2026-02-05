@@ -302,3 +302,16 @@ class TestPinningBehavior:
         # App should check this before allowing another pin
         at_limit = storage.count_pinned() >= MAX_PINNED_ENTRIES
         assert at_limit is True
+
+    def test_clear_pinned_clears_all(self, storage, make_entry):
+        id1 = storage.add_entry(make_entry("entry 1", content_hash="h1"))
+        id2 = storage.add_entry(make_entry("entry 2", content_hash="h2"))
+        storage.toggle_pin(id1)
+        storage.toggle_pin(id2)
+
+        assert storage.count_pinned() == 2
+
+        storage.clear_pinned()
+
+        assert storage.count_pinned() == 0
+        assert storage.get_pinned() == []

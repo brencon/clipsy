@@ -221,6 +221,11 @@ class StorageManager:
         row = self._conn.execute("SELECT COUNT(*) as cnt FROM clipboard_entries WHERE pinned = 1").fetchone()
         return row["cnt"]
 
+    def clear_pinned(self) -> None:
+        """Unpin all pinned entries."""
+        self._conn.execute("UPDATE clipboard_entries SET pinned = 0 WHERE pinned = 1")
+        self._conn.commit()
+
     def close(self) -> None:
         self._conn.close()
 

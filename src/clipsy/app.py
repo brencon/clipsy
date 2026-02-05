@@ -42,6 +42,8 @@ class ClipsyApp(rumps.App):
             pinned_menu = rumps.MenuItem("📌 Pinned")
             for entry in pinned_entries:
                 pinned_menu.add(self._create_entry_menu_item(entry))
+            pinned_menu.add(None)  # separator
+            pinned_menu.add(rumps.MenuItem("Clear Pinned", callback=self._on_clear_pinned))
             self.menu.add(pinned_menu)
             self.menu.add(None)  # separator
 
@@ -203,6 +205,11 @@ class ClipsyApp(rumps.App):
             self._storage.toggle_pin(entry.id)
             rumps.notification("Clipsy", "", "Pinned", sound=False)
 
+        self._refresh_menu()
+
+    def _on_clear_pinned(self, _sender) -> None:
+        """Clear all pinned entries."""
+        self._storage.clear_pinned()
         self._refresh_menu()
 
     def _on_search(self, _sender) -> None:

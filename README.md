@@ -60,6 +60,8 @@ Then just use your Mac normally. Every time you copy something, it shows up in t
 ├── ... (up to 10 items)
 ├── ──────────────────
 ├── Clear History
+├── Support Clipsy
+├── ──────────────────
 └── Quit Clipsy
 ```
 

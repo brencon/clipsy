@@ -1,4 +1,5 @@
 import logging
+import webbrowser
 
 import rumps
 
@@ -61,6 +62,7 @@ class ClipsyApp(rumps.App):
 
         self.menu.add(None)  # separator
         self.menu.add(rumps.MenuItem("Clear History", callback=self._on_clear))
+        self.menu.add(rumps.MenuItem("Support Clipsy", callback=self._on_support))
         self.menu.add(None)  # separator
         self.menu.add(rumps.MenuItem("Quit Clipsy", callback=self._on_quit))
 
@@ -200,6 +202,9 @@ class ClipsyApp(rumps.App):
         if rumps.alert("Clipsy", "Clear all clipboard history?", ok="Clear", cancel="Cancel"):
             self._storage.clear_all()
             self._refresh_menu()
+
+    def _on_support(self, _sender) -> None:
+        webbrowser.open("https://github.com/sponsors/brencon")
 
     def _on_quit(self, _sender) -> None:
         self._storage.close()

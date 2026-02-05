@@ -15,6 +15,7 @@ A lightweight clipboard history manager for macOS. Runs as a menu bar icon — n
 - **Image thumbnails** — Visual previews for copied images in the menu
 - **Sensitive data masking** — Auto-detects API keys, passwords, SSNs, credit cards, private keys, and tokens; displays masked previews with 🔒 icon
 - **Search** — Full-text search across all clipboard entries (SQLite FTS5)
+- **Rich text preservation** — Preserves RTF and HTML formatting when re-copying from history (e.g., bold, italic, links from web pages)
 - **Click to re-copy** — Click any entry in the menu to put it back on your clipboard
 - **Deduplication** — Copying the same content twice bumps it to the top instead of creating a duplicate
 - **Auto-purge** — Keeps the most recent 500 entries, automatically cleans up old ones
@@ -76,7 +77,7 @@ Then just use your Mac normally. Every time you copy something, it shows up in t
 ├── "https://github.com/example..."
 ├── 🔒 "password=••••••••"
 ├── [thumbnail] "[Image: 1920x1080]"
-├── ... (up to 10 items)
+├── ... (up to 10 items, configurable)
 ├── ──────────────────
 ├── Clear History
 ├── ──────────────────
@@ -92,6 +93,17 @@ clipsy            # Install and start as background service (default)
 clipsy status     # Check if running
 clipsy uninstall  # Remove from login items
 clipsy run        # Run in foreground (for debugging)
+```
+
+## Configuration
+
+| Variable | Default | Range | Description |
+|----------|---------|-------|-------------|
+| `CLIPSY_MENU_DISPLAY_COUNT` | `10` | 5–50 | Number of entries shown in the menu |
+
+```bash
+# Example: show 20 entries in the menu
+export CLIPSY_MENU_DISPLAY_COUNT=20
 ```
 
 ## Data Storage

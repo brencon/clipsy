@@ -346,3 +346,82 @@ class TestFileCleanup:
         # Check that old files were deleted
         remaining_files = list(tmp_path.glob("*.png"))
         assert len(remaining_files) == 4  # 2 images + 2 thumbnails
+
+
+class TestRichTextEntries:
+    def test_store_and_retrieve_rtf_data(self, storage, make_entry):
+        rtf_bytes = b"{\\rtf1\\ansi Hello \\b World\\b0}"
+        entry = make_entry("Hello World", rtf_data=rtf_bytes)
+        entry_id = storage.add_entry(entry)
+        retrieved = storage.get_entry(entry_id)
+        assert retrieved.rtf_data == rtf_bytes
+        assert retrieved.text_content == "Hello World"
+
+    def test_store_and_retrieve_html_data(self, storage, make_entry):
+        html_bytes = b"<p>Hello <b>World</b></p>"
+        entry = make_entry("Hello World", html_data=html_bytes, content_hash="html_hash")
+        entry_id = storage.add_entry(entry)
+        retrieved = storage.get_entry(entry_id)
+        assert retrieved.html_data == html_bytes
+
+    def test_store_both_rtf_and_html(self, storage, make_entry):
+        rtf_bytes = b"{\\rtf1\\ansi Hello \\b World\\b0}"
+        html_bytes = b"<p>Hello <b>World</b></p>"
+        entry = make_entry("Hello World", rtf_data=rtf_bytes, html_data=html_bytes)
+        entry_id = storage.add_entry(entry)
+        retrieved = storage.get_entry(entry_id)
+        assert retrieved.rtf_data == rtf_bytes
+        assert retrieved.html_data == html_bytes
+
+    def test_entry_without_rtf_data(self, storage, make_entry):
+        entry = make_entry("plain text only")
+        entry_id = storage.add_entry(entry)
+        retrieved = storage.get_entry(entry_id)
+        assert retrieved.rtf_data is None
+        assert retrieved.html_data is None
+
+    def test_search_still_uses_text_content(self, storage, make_entry):
+        rtf_bytes = b"{\\rtf1\\ansi Hello}"
+        entry = make_entry("Hello World", rtf_data=rtf_bytes)
+        storage.add_entry(entry)
+        results = storage.search("Hello")
+        assert len(results) == 1
+        assert results[0].rtf_data == rtf_bytes
+
+
+class TestRichTextMigration:
+    def test_migrate_adds_rtf_and_html_columns(self, tmp_path):
+        """Test that migration adds rtf_data and html_data to old databases."""
+        import sqlite3
+        from clipsy.storage import StorageManager
+
+        db_file = tmp_path / "old_db_no_rtf.sqlite"
+        conn = sqlite3.connect(str(db_file))
+        conn.executescript("""
+            CREATE TABLE clipboard_entries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                content_type TEXT NOT NULL,
+                text_content TEXT,
+                image_path TEXT,
+                preview TEXT NOT NULL,
+                content_hash TEXT NOT NULL,
+                byte_size INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                pinned INTEGER NOT NULL DEFAULT 0,
+                source_app TEXT,
+                thumbnail_path TEXT,
+                is_sensitive INTEGER NOT NULL DEFAULT 0,
+                masked_preview TEXT
+            );
+        """)
+        conn.commit()
+        conn.close()
+
+        mgr = StorageManager(db_path=str(db_file))
+
+        cursor = mgr._conn.execute("PRAGMA table_info(clipboard_entries)")
+        columns = {row[1] for row in cursor.fetchall()}
+        assert "rtf_data" in columns
+        assert "html_data" in columns
+
+        mgr.close()

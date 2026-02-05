@@ -369,3 +369,104 @@ class TestThumbnailGeneration:
         entries = storage.get_recent()
         assert len(entries) == 1
         assert entries[0].thumbnail_path == str(thumb_path)
+
+
+class TestRichTextClipboard:
+    def test_rtf_data_captured(self, monitor, mock_pasteboard, storage):
+        rtf_bytes = b"{\\rtf1\\ansi Hello \\b World\\b0}"
+        mock_pasteboard.changeCount.return_value = 1
+        mock_pasteboard.types.return_value = ["public.utf8-plain-text", "public.rtf"]
+        mock_pasteboard.stringForType_.return_value = "Hello World"
+        mock_pasteboard.dataForType_.return_value = rtf_bytes
+
+        with (
+            patch("clipsy.monitor.NSPasteboardTypeString", "public.utf8-plain-text"),
+            patch("clipsy.monitor.NSPasteboardTypeRTF", "public.rtf"),
+            patch("clipsy.monitor.NSPasteboardTypeHTML", "public.html"),
+        ):
+            assert monitor.check_clipboard() is True
+
+        entries = storage.get_recent()
+        assert len(entries) == 1
+        assert entries[0].text_content == "Hello World"
+        assert entries[0].rtf_data == rtf_bytes
+
+    def test_html_data_captured(self, monitor, mock_pasteboard, storage):
+        html_bytes = b"<p>Hello <b>World</b></p>"
+        mock_pasteboard.changeCount.return_value = 1
+        mock_pasteboard.types.return_value = ["public.utf8-plain-text", "public.html"]
+        mock_pasteboard.stringForType_.return_value = "Hello World"
+        mock_pasteboard.dataForType_.return_value = html_bytes
+
+        with (
+            patch("clipsy.monitor.NSPasteboardTypeString", "public.utf8-plain-text"),
+            patch("clipsy.monitor.NSPasteboardTypeRTF", "public.rtf"),
+            patch("clipsy.monitor.NSPasteboardTypeHTML", "public.html"),
+        ):
+            assert monitor.check_clipboard() is True
+
+        entries = storage.get_recent()
+        assert len(entries) == 1
+        assert entries[0].html_data == html_bytes
+
+    def test_both_rtf_and_html_captured(self, monitor, mock_pasteboard, storage):
+        rtf_bytes = b"{\\rtf1\\ansi Hello}"
+        html_bytes = b"<p>Hello</p>"
+        mock_pasteboard.changeCount.return_value = 1
+        mock_pasteboard.types.return_value = ["public.utf8-plain-text", "public.rtf", "public.html"]
+        mock_pasteboard.stringForType_.return_value = "Hello"
+
+        def data_for_type(type_str):
+            if type_str == "public.rtf":
+                return rtf_bytes
+            if type_str == "public.html":
+                return html_bytes
+            return None
+
+        mock_pasteboard.dataForType_ = data_for_type
+
+        with (
+            patch("clipsy.monitor.NSPasteboardTypeString", "public.utf8-plain-text"),
+            patch("clipsy.monitor.NSPasteboardTypeRTF", "public.rtf"),
+            patch("clipsy.monitor.NSPasteboardTypeHTML", "public.html"),
+        ):
+            assert monitor.check_clipboard() is True
+
+        entries = storage.get_recent()
+        assert len(entries) == 1
+        assert entries[0].rtf_data == rtf_bytes
+        assert entries[0].html_data == html_bytes
+
+    def test_plain_text_without_rtf(self, monitor, mock_pasteboard, storage):
+        mock_pasteboard.changeCount.return_value = 1
+        mock_pasteboard.types.return_value = ["public.utf8-plain-text"]
+        mock_pasteboard.stringForType_.return_value = "plain text"
+
+        with (
+            patch("clipsy.monitor.NSPasteboardTypeString", "public.utf8-plain-text"),
+            patch("clipsy.monitor.NSPasteboardTypeRTF", "public.rtf"),
+            patch("clipsy.monitor.NSPasteboardTypeHTML", "public.html"),
+        ):
+            assert monitor.check_clipboard() is True
+
+        entries = storage.get_recent()
+        assert len(entries) == 1
+        assert entries[0].rtf_data is None
+        assert entries[0].html_data is None
+
+    def test_rtf_data_for_type_returns_none(self, monitor, mock_pasteboard, storage):
+        mock_pasteboard.changeCount.return_value = 1
+        mock_pasteboard.types.return_value = ["public.utf8-plain-text", "public.rtf"]
+        mock_pasteboard.stringForType_.return_value = "Hello"
+        mock_pasteboard.dataForType_.return_value = None
+
+        with (
+            patch("clipsy.monitor.NSPasteboardTypeString", "public.utf8-plain-text"),
+            patch("clipsy.monitor.NSPasteboardTypeRTF", "public.rtf"),
+            patch("clipsy.monitor.NSPasteboardTypeHTML", "public.html"),
+        ):
+            assert monitor.check_clipboard() is True
+
+        entries = storage.get_recent()
+        assert len(entries) == 1
+        assert entries[0].rtf_data is None

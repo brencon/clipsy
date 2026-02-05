@@ -5,6 +5,16 @@ from pathlib import Path
 
 from AppKit import NSPasteboard, NSPasteboardTypePNG, NSPasteboardTypeTIFF, NSPasteboardTypeString, NSFilenamesPboardType
 
+try:
+    from AppKit import NSPasteboardTypeRTF
+except ImportError:
+    NSPasteboardTypeRTF = "public.rtf"
+
+try:
+    from AppKit import NSPasteboardTypeHTML
+except ImportError:
+    NSPasteboardTypeHTML = "public.html"
+
 from clipsy.config import IMAGE_DIR, MAX_IMAGE_SIZE, MAX_TEXT_SIZE, PREVIEW_LENGTH, REDACT_SENSITIVE, THUMBNAIL_SIZE
 from clipsy.models import ClipboardEntry, ContentType
 from clipsy.redact import detect_sensitive, mask_text
@@ -84,6 +94,19 @@ class ClipboardMonitor:
         content_hash = compute_hash(text_bytes)
         preview = truncate_text(text, PREVIEW_LENGTH)
 
+        rtf_data = None
+        html_data = None
+        types = self._pasteboard.types()
+        if types:
+            if NSPasteboardTypeRTF in types:
+                data = self._pasteboard.dataForType_(NSPasteboardTypeRTF)
+                if data:
+                    rtf_data = bytes(data)
+            if NSPasteboardTypeHTML in types:
+                data = self._pasteboard.dataForType_(NSPasteboardTypeHTML)
+                if data:
+                    html_data = bytes(data)
+
         is_sensitive = False
         masked_preview = None
         if REDACT_SENSITIVE:
@@ -103,6 +126,8 @@ class ClipboardMonitor:
             created_at=datetime.now(),
             is_sensitive=is_sensitive,
             masked_preview=masked_preview,
+            rtf_data=rtf_data,
+            html_data=html_data,
         )
 
     def _read_image(self, img_type) -> ClipboardEntry | None:

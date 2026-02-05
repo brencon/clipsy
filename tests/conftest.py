@@ -27,6 +27,8 @@ def make_entry():
         pinned: bool = False,
         image_path: str | None = None,
         thumbnail_path: str | None = _UNSET,
+        rtf_data: bytes | None = None,
+        html_data: bytes | None = None,
     ) -> ClipboardEntry:
         if content_type == ContentType.IMAGE:
             # Use default only if not provided; explicit None stays None
@@ -56,6 +58,8 @@ def make_entry():
             created_at=datetime.now(),
             pinned=pinned,
             thumbnail_path=text_thumbnail,
+            rtf_data=rtf_data,
+            html_data=html_data,
         )
 
     return _make_entry

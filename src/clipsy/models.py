@@ -24,3 +24,5 @@ class ClipboardEntry:
     thumbnail_path: str | None = None
     is_sensitive: bool = False
     masked_preview: str | None = None
+    rtf_data: bytes | None = None
+    html_data: bytes | None = None

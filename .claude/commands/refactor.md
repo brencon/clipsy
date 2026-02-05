@@ -10,11 +10,26 @@ Refactor the following while preserving behavior: $ARGUMENTS
 4. **Improve Readability**: Make code more understandable
 5. **Reduce Complexity**: Simplify where possible
 
+## Scope
+
+**Refactoring is strictly about improving existing code structure.**
+
+Do NOT:
+- Write new tests (use `/test` command separately if needed)
+- Add new features or functionality
+- Change behavior
+
+Do:
+- Extract duplicate code into shared functions
+- Move imports to top of files
+- Rename for clarity
+- Reduce nesting and complexity
+- Remove dead code
+
 ## Before Starting
 
-- Ensure tests exist for the code being refactored
-- If no tests exist, write them first
-- Run tests to establish baseline
+- Run existing tests to establish baseline
+- Note current coverage (for reference only, not to improve)
 
 ## Refactoring Steps
 
@@ -32,6 +47,7 @@ Refactor the following while preserving behavior: $ARGUMENTS
 - Reduce nesting and complexity
 - Apply appropriate design patterns
 - Improve type safety
+- Move imports to module level
 
 ## Output
 
@@ -39,4 +55,4 @@ Provide:
 - Summary of changes made
 - Before/after comparison for significant changes
 - Confirmation that tests still pass
-- Any follow-up refactoring suggestions
+- Any follow-up suggestions (including potential test improvements as separate work)

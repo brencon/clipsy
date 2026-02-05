@@ -217,3 +217,155 @@ class TestErrorHandling:
 
         result = monitor.check_clipboard()
         assert result is False
+
+
+class TestSensitiveDataHandling:
+    def test_sensitive_text_detected_and_masked(self, monitor, mock_pasteboard, storage):
+        """Test that sensitive data is detected and masked (lines 73-74)."""
+        mock_pasteboard.changeCount.return_value = 1
+        mock_pasteboard.types.return_value = ["public.utf8-plain-text"]
+        mock_pasteboard.stringForType_.return_value = "password=mysecret123"
+
+        with (
+            patch("clipsy.monitor.NSPasteboardTypeString", "public.utf8-plain-text"),
+            patch("clipsy.monitor.REDACT_SENSITIVE", True),
+        ):
+            assert monitor.check_clipboard() is True
+
+        entries = storage.get_recent()
+        assert len(entries) == 1
+        assert entries[0].is_sensitive is True
+        assert entries[0].masked_preview is not None
+        assert "mysecret123" not in entries[0].masked_preview
+
+
+class TestLargeImageHandling:
+    def test_large_image_skipped(self, monitor, mock_pasteboard, storage, tmp_path):
+        """Test that images exceeding MAX_IMAGE_SIZE are skipped (lines 96-97)."""
+        # Create large image data
+        large_png_header = b"\x89PNG\r\n\x1a\n"
+        ihdr_chunk = b"\x00\x00\x00\rIHDR"
+        width = (100).to_bytes(4, "big")
+        height = (50).to_bytes(4, "big")
+        # Make it larger than MAX_IMAGE_SIZE (10MB)
+        large_data = large_png_header + ihdr_chunk + width + height + b"\x00" * (11 * 1024 * 1024)
+
+        mock_pasteboard.changeCount.return_value = 1
+        mock_pasteboard.types.return_value = ["public.png"]
+        mock_pasteboard.dataForType_.return_value = large_data
+
+        with (
+            patch("clipsy.monitor.NSPasteboardTypeString", "public.utf8-plain-text"),
+            patch("clipsy.monitor.NSPasteboardTypePNG", "public.png"),
+            patch("clipsy.monitor.NSPasteboardTypeTIFF", "public.tiff"),
+            patch("clipsy.monitor.NSFilenamesPboardType", "NSFilenamesPboardType"),
+            patch("clipsy.monitor.MAX_IMAGE_SIZE", 10 * 1024 * 1024),  # 10MB
+        ):
+            # Should return False because the image is too large
+            result = monitor.check_clipboard()
+            assert result is False
+
+        # No entry should be stored
+        assert storage.count() == 0
+
+
+class TestThumbnailGeneration:
+    def test_thumbnail_generated_with_image(self, monitor, mock_pasteboard, storage, tmp_path):
+        """Test that thumbnail is generated when saving an image (line 150)."""
+        import zlib
+
+        def create_minimal_png():
+            signature = b"\x89PNG\r\n\x1a\n"
+            ihdr_data = b"\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00"
+            ihdr_crc = zlib.crc32(b"IHDR" + ihdr_data) & 0xFFFFFFFF
+            ihdr_chunk = b"\x00\x00\x00\x0d" + b"IHDR" + ihdr_data + ihdr_crc.to_bytes(4, "big")
+            raw_data = b"\x00\xff\x00\x00"
+            compressed = zlib.compress(raw_data)
+            idat_crc = zlib.crc32(b"IDAT" + compressed) & 0xFFFFFFFF
+            idat_chunk = len(compressed).to_bytes(4, "big") + b"IDAT" + compressed + idat_crc.to_bytes(4, "big")
+            iend_crc = zlib.crc32(b"IEND") & 0xFFFFFFFF
+            iend_chunk = b"\x00\x00\x00\x00" + b"IEND" + iend_crc.to_bytes(4, "big")
+            return signature + ihdr_chunk + idat_chunk + iend_chunk
+
+        png_data = create_minimal_png()
+
+        mock_pasteboard.changeCount.return_value = 1
+        mock_pasteboard.types.return_value = ["public.png"]
+        mock_pasteboard.dataForType_.return_value = png_data
+
+        image_dir = tmp_path / "images"
+        image_dir.mkdir(exist_ok=True)
+
+        with (
+            patch("clipsy.monitor.NSPasteboardTypeString", "public.utf8-plain-text"),
+            patch("clipsy.monitor.NSPasteboardTypePNG", "public.png"),
+            patch("clipsy.monitor.NSPasteboardTypeTIFF", "public.tiff"),
+            patch("clipsy.monitor.NSFilenamesPboardType", "NSFilenamesPboardType"),
+            patch("clipsy.monitor.IMAGE_DIR", image_dir),
+            patch("clipsy.monitor.create_thumbnail") as mock_create_thumb,
+        ):
+            mock_create_thumb.return_value = True
+            monitor.check_clipboard()
+
+        # Verify create_thumbnail was called
+        mock_create_thumb.assert_called_once()
+
+        entries = storage.get_recent()
+        assert len(entries) == 1
+        assert entries[0].thumbnail_path is not None
+
+    def test_existing_thumbnail_reused(self, monitor, mock_pasteboard, storage, tmp_path):
+        """Test that existing thumbnail is reused (line 153)."""
+        import zlib
+
+        def create_minimal_png():
+            signature = b"\x89PNG\r\n\x1a\n"
+            ihdr_data = b"\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00"
+            ihdr_crc = zlib.crc32(b"IHDR" + ihdr_data) & 0xFFFFFFFF
+            ihdr_chunk = b"\x00\x00\x00\x0d" + b"IHDR" + ihdr_data + ihdr_crc.to_bytes(4, "big")
+            raw_data = b"\x00\xff\x00\x00"
+            compressed = zlib.compress(raw_data)
+            idat_crc = zlib.crc32(b"IDAT" + compressed) & 0xFFFFFFFF
+            idat_chunk = len(compressed).to_bytes(4, "big") + b"IDAT" + compressed + idat_crc.to_bytes(4, "big")
+            iend_crc = zlib.crc32(b"IEND") & 0xFFFFFFFF
+            iend_chunk = b"\x00\x00\x00\x00" + b"IEND" + iend_crc.to_bytes(4, "big")
+            return signature + ihdr_chunk + idat_chunk + iend_chunk
+
+        from clipsy.utils import compute_hash
+
+        png_data = create_minimal_png()
+        content_hash = compute_hash(png_data)
+
+        mock_pasteboard.changeCount.return_value = 1
+        mock_pasteboard.types.return_value = ["public.png"]
+        mock_pasteboard.dataForType_.return_value = png_data
+
+        image_dir = tmp_path / "images"
+        image_dir.mkdir(exist_ok=True)
+
+        # Pre-create the thumbnail file
+        thumb_filename = content_hash[:12] + "_thumb.png"
+        thumb_path = image_dir / thumb_filename
+        thumb_path.write_bytes(b"fake thumbnail")
+
+        # Also create the main image file
+        main_filename = content_hash[:12] + ".png"
+        main_path = image_dir / main_filename
+        main_path.write_bytes(png_data)
+
+        with (
+            patch("clipsy.monitor.NSPasteboardTypeString", "public.utf8-plain-text"),
+            patch("clipsy.monitor.NSPasteboardTypePNG", "public.png"),
+            patch("clipsy.monitor.NSPasteboardTypeTIFF", "public.tiff"),
+            patch("clipsy.monitor.NSFilenamesPboardType", "NSFilenamesPboardType"),
+            patch("clipsy.monitor.IMAGE_DIR", image_dir),
+            patch("clipsy.monitor.create_thumbnail") as mock_create_thumb,
+        ):
+            monitor.check_clipboard()
+
+        # create_thumbnail should NOT be called since file already exists
+        mock_create_thumb.assert_not_called()
+
+        entries = storage.get_recent()
+        assert len(entries) == 1
+        assert entries[0].thumbnail_path == str(thumb_path)

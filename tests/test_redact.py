@@ -233,6 +233,33 @@ class TestGetSensitivitySummary:
         assert "Ssn" in summary
 
 
+class TestMaskValueEdgeCases:
+    """Test edge cases in _mask_value function for coverage."""
+
+    def test_short_api_key_fully_masked(self):
+        """Test API key with length <= 12 is fully masked (line 113)."""
+        from clipsy.redact import _mask_value
+
+        # Short API key gets fully masked
+        result = _mask_value("sk-short123", SensitiveType.API_KEY)
+        assert result == "••••••••"
+
+    def test_token_unknown_format_fully_masked(self):
+        """Test token that doesn't match Bearer or JWT format (line 105)."""
+        from clipsy.redact import _mask_value
+
+        # A token that doesn't start with Bearer or eyJ
+        result = _mask_value("some_token_value_12345", SensitiveType.TOKEN)
+        assert result == "••••••••"
+
+    def test_ssn_without_dashes_masked(self):
+        """Test SSN without dashes shows last 4 digits."""
+        from clipsy.redact import _mask_value
+
+        result = _mask_value("123456789", SensitiveType.SSN)
+        assert result == "•••••6789"
+
+
 class TestNoFalsePositives:
     def test_short_numbers_not_ssn(self):
         text = "Phone: 555-1234"

@@ -154,34 +154,36 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Commands:
-  (none)      Run Clipsy in foreground
-  install     Install as LaunchAgent (runs on login)
+  (none)      Install and run as background service (default)
   uninstall   Remove LaunchAgent
   status      Check if Clipsy is running
+  run         Run in foreground (for debugging)
 
 Examples:
-  clipsy install    # Install and start as background service
+  clipsy            # Install and start as background service
   clipsy status     # Check if running
   clipsy uninstall  # Stop and remove from login items
+  clipsy run        # Run in foreground (debugging)
 """,
     )
     parser.add_argument(
         "command",
         nargs="?",
-        choices=["install", "uninstall", "status"],
+        choices=["uninstall", "status", "run"],
         help="Command to run",
     )
 
     args = parser.parse_args()
 
-    if args.command == "install":
-        sys.exit(install_launchagent())
-    elif args.command == "uninstall":
+    if args.command == "uninstall":
         sys.exit(uninstall_launchagent())
     elif args.command == "status":
         sys.exit(check_status())
-    else:
+    elif args.command == "run":
         run_app()
+    else:
+        # Default: install and start as background service
+        sys.exit(install_launchagent())
 
 
 if __name__ == "__main__":

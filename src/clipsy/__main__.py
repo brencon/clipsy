@@ -37,6 +37,7 @@ def create_plist(clipsy_path: str) -> str:
     <key>ProgramArguments</key>
     <array>
         <string>{clipsy_path}</string>
+        <string>run</string>
     </array>
     <key>RunAtLoad</key>
     <true/>

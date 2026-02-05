@@ -148,3 +148,66 @@ class TestCreateThumbnail:
         # Thumbnail should be a valid PNG
         thumb_data = thumb_file.read_bytes()
         assert thumb_data.startswith(b"\x89PNG")
+
+    def test_tiff_representation_fails(self, tmp_path):
+        mock_original = MagicMock()
+        mock_resized = MagicMock()
+        mock_resized.TIFFRepresentation.return_value = None
+
+        mock_nsimage_cls = MagicMock()
+        mock_nsimage_cls.alloc.return_value.initWithContentsOfFile_.return_value = mock_original
+        mock_nsimage_cls.alloc.return_value.initWithSize_.return_value = mock_resized
+
+        with patch.dict("sys.modules", {"AppKit": MagicMock(NSImage=mock_nsimage_cls)}):
+            result = create_thumbnail("/fake.png", str(tmp_path / "thumb.png"))
+
+        assert result is False
+
+    def test_bitmap_rep_fails(self, tmp_path):
+        mock_original = MagicMock()
+        mock_resized = MagicMock()
+        mock_resized.TIFFRepresentation.return_value = MagicMock()
+
+        mock_nsimage_cls = MagicMock()
+        mock_nsimage_cls.alloc.return_value.initWithContentsOfFile_.return_value = mock_original
+        mock_nsimage_cls.alloc.return_value.initWithSize_.return_value = mock_resized
+
+        mock_bitmap_cls = MagicMock()
+        mock_bitmap_cls.imageRepWithData_.return_value = None
+
+        with patch.dict("sys.modules", {"AppKit": MagicMock(NSImage=mock_nsimage_cls, NSBitmapImageRep=mock_bitmap_cls)}):
+            result = create_thumbnail("/fake.png", str(tmp_path / "thumb.png"))
+
+        assert result is False
+
+    def test_png_data_fails(self, tmp_path):
+        mock_original = MagicMock()
+        mock_resized = MagicMock()
+        mock_resized.TIFFRepresentation.return_value = MagicMock()
+
+        mock_bitmap_rep = MagicMock()
+        mock_bitmap_rep.representationUsingType_properties_.return_value = None
+
+        mock_nsimage_cls = MagicMock()
+        mock_nsimage_cls.alloc.return_value.initWithContentsOfFile_.return_value = mock_original
+        mock_nsimage_cls.alloc.return_value.initWithSize_.return_value = mock_resized
+
+        mock_bitmap_cls = MagicMock()
+        mock_bitmap_cls.imageRepWithData_.return_value = mock_bitmap_rep
+
+        with patch.dict("sys.modules", {"AppKit": MagicMock(NSImage=mock_nsimage_cls, NSBitmapImageRep=mock_bitmap_cls)}):
+            result = create_thumbnail("/fake.png", str(tmp_path / "thumb.png"))
+
+        assert result is False
+
+    def test_exception_returns_false(self, tmp_path):
+        mock_original = MagicMock()
+        mock_original.drawInRect_.side_effect = RuntimeError("boom")
+
+        mock_nsimage_cls = MagicMock()
+        mock_nsimage_cls.alloc.return_value.initWithContentsOfFile_.return_value = mock_original
+
+        with patch.dict("sys.modules", {"AppKit": MagicMock(NSImage=mock_nsimage_cls)}):
+            result = create_thumbnail("/fake.png", str(tmp_path / "thumb.png"))
+
+        assert result is False

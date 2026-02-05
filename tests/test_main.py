@@ -5,7 +5,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from clipsy.__main__ import (
-    PLIST_NAME,
     check_status,
     create_plist,
     get_clipsy_path,
@@ -157,3 +156,60 @@ class TestCLIParsing:
         with patch("sys.argv", ["clipsy", "run"]):
             main()
             mock_run.assert_called_once()
+
+
+class TestRunApp:
+    @patch("clipsy.app.ClipsyApp")
+    @patch("clipsy.__main__.logging.basicConfig")
+    @patch("clipsy.__main__.ensure_dirs")
+    def test_run_app_initializes_and_runs(self, mock_dirs, mock_logging, mock_app_class):
+        from clipsy.__main__ import run_app
+
+        mock_app = MagicMock()
+        mock_app_class.return_value = mock_app
+
+        run_app()
+
+        mock_dirs.assert_called_once()
+        mock_logging.assert_called_once()
+        mock_app_class.assert_called_once()
+        mock_app.run.assert_called_once()
+
+    @patch("clipsy.app.ClipsyApp")
+    @patch("clipsy.__main__.logging.basicConfig")
+    @patch("clipsy.__main__.ensure_dirs")
+    def test_run_app_configures_logging(self, mock_dirs, mock_logging, mock_app_class):
+        from clipsy.__main__ import run_app
+
+        mock_app_class.return_value = MagicMock()
+
+        run_app()
+
+        call_kwargs = mock_logging.call_args[1]
+        assert call_kwargs["level"] == 20  # logging.INFO
+        assert "%(asctime)s" in call_kwargs["format"]
+        assert len(call_kwargs["handlers"]) == 2
+
+
+class TestModuleEntryPoint:
+    def test_module_entry_point(self):
+        import importlib.util
+        import sys
+        from pathlib import Path
+
+        main_file = Path(__file__).parent.parent / "src" / "clipsy" / "__main__.py"
+
+        spec = importlib.util.spec_from_file_location("__main__", main_file)
+        module = importlib.util.module_from_spec(spec)
+
+        with patch("sys.argv", ["clipsy"]):
+            with patch.object(module, "install_launchagent", return_value=0, create=True):
+                old_modules = sys.modules.copy()
+                try:
+                    sys.modules["__main__"] = module
+                    spec.loader.exec_module(module)
+                except SystemExit as e:
+                    assert e.code == 0
+                finally:
+                    sys.modules.clear()
+                    sys.modules.update(old_modules)

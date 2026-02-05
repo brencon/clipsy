@@ -76,7 +76,9 @@ Then just use your Mac normally. Every time you copy something, it shows up in t
 ├── ──────────────────
 ├── 📌 Pinned ►
 │   ├── "my-api-endpoint.com/v1..."
-│   └── "SELECT * FROM users..."
+│   ├── "SELECT * FROM users..."
+│   ├── ──────────────────
+│   └── Clear Pinned
 ├── ──────────────────
 ├── "Meeting notes for Q3 plan..."
 ├── "https://github.com/example..."

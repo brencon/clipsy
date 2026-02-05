@@ -62,6 +62,7 @@ class ClipsyApp(rumps.App):
 
         self.menu.add(None)  # separator
         self.menu.add(rumps.MenuItem("Clear History", callback=self._on_clear))
+        self.menu.add(None)  # separator
         self.menu.add(rumps.MenuItem("Support Clipsy", callback=self._on_support))
         self.menu.add(None)  # separator
         self.menu.add(rumps.MenuItem("Quit Clipsy", callback=self._on_quit))

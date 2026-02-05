@@ -1,5 +1,6 @@
 import logging
 from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 
 from AppKit import NSPasteboard, NSPasteboardTypePNG, NSPasteboardTypeTIFF, NSPasteboardTypeString, NSFilenamesPboardType
@@ -51,8 +52,6 @@ class ClipboardMonitor:
         self._last_change_count = self._pasteboard.changeCount()
 
     def _read_clipboard(self) -> ClipboardEntry | None:
-        from datetime import datetime
-
         types = self._pasteboard.types()
         if types is None:
             return None

@@ -202,3 +202,39 @@ class TestMenuEntryMapping:
 
         assert "old_key" not in entry_ids
         assert len(entry_ids) == 1
+
+
+class TestRichTextRestoration:
+    """Test that RTF/HTML data round-trips through storage for restoration."""
+
+    def test_text_entry_with_rtf_data_available(self, storage, make_entry):
+        rtf_bytes = b"{\\rtf1\\ansi Hello \\b World\\b0}"
+        entry_id = storage.add_entry(make_entry("Hello World", rtf_data=rtf_bytes))
+        entry = storage.get_entry(entry_id)
+        assert entry.rtf_data == rtf_bytes
+        assert entry.text_content == "Hello World"
+        assert entry.content_type == ContentType.TEXT
+
+    def test_text_entry_with_html_data_available(self, storage, make_entry):
+        html_bytes = b"<p>Hello <b>World</b></p>"
+        entry_id = storage.add_entry(make_entry("Hello World", html_data=html_bytes, content_hash="html_h"))
+        entry = storage.get_entry(entry_id)
+        assert entry.html_data == html_bytes
+        assert entry.text_content == "Hello World"
+
+    def test_text_entry_with_both_formats(self, storage, make_entry):
+        rtf_bytes = b"{\\rtf1\\ansi Hello}"
+        html_bytes = b"<p>Hello</p>"
+        entry_id = storage.add_entry(
+            make_entry("Hello", rtf_data=rtf_bytes, html_data=html_bytes)
+        )
+        entry = storage.get_entry(entry_id)
+        assert entry.rtf_data == rtf_bytes
+        assert entry.html_data == html_bytes
+
+    def test_plain_text_entry_has_no_rich_data(self, storage, make_entry):
+        entry_id = storage.add_entry(make_entry("plain text"))
+        entry = storage.get_entry(entry_id)
+        assert entry.rtf_data is None
+        assert entry.html_data is None
+        assert entry.text_content == "plain text"

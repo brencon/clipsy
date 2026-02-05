@@ -120,6 +120,7 @@ class ClipsyApp(rumps.App):
 
         try:
             from AppKit import NSPasteboard, NSPasteboardTypePNG, NSPasteboardTypeString
+            from Foundation import NSData
 
             pb = NSPasteboard.generalPasteboard()
 
@@ -128,11 +129,18 @@ class ClipsyApp(rumps.App):
             if entry.content_type == ContentType.TEXT and entry.text_content:
                 pb.clearContents()
                 pb.setString_forType_(entry.text_content, NSPasteboardTypeString)
+                if entry.rtf_data:
+                    rtf_ns_data = NSData.dataWithBytes_length_(entry.rtf_data, len(entry.rtf_data))
+                    if rtf_ns_data:
+                        pb.setData_forType_(rtf_ns_data, "public.rtf")
+                if entry.html_data:
+                    html_ns_data = NSData.dataWithBytes_length_(entry.html_data, len(entry.html_data))
+                    if html_ns_data:
+                        pb.setData_forType_(html_ns_data, "public.html")
                 self._monitor.sync_change_count()
                 copied = True
 
             elif entry.content_type == ContentType.IMAGE and entry.image_path:
-                from Foundation import NSData
                 img_data = NSData.dataWithContentsOfFile_(entry.image_path)
                 if img_data:
                     pb.clearContents()

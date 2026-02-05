@@ -20,7 +20,9 @@ CREATE TABLE IF NOT EXISTS clipboard_entries (
     source_app     TEXT,
     thumbnail_path TEXT,
     is_sensitive   INTEGER NOT NULL DEFAULT 0,
-    masked_preview TEXT
+    masked_preview TEXT,
+    rtf_data       BLOB,
+    html_data      BLOB
 );
 
 CREATE INDEX IF NOT EXISTS idx_created_at ON clipboard_entries(created_at DESC);
@@ -70,6 +72,10 @@ class StorageManager:
             self._conn.execute("ALTER TABLE clipboard_entries ADD COLUMN is_sensitive INTEGER NOT NULL DEFAULT 0")
         if "masked_preview" not in columns:
             self._conn.execute("ALTER TABLE clipboard_entries ADD COLUMN masked_preview TEXT")
+        if "rtf_data" not in columns:
+            self._conn.execute("ALTER TABLE clipboard_entries ADD COLUMN rtf_data BLOB")
+        if "html_data" not in columns:
+            self._conn.execute("ALTER TABLE clipboard_entries ADD COLUMN html_data BLOB")
 
     @staticmethod
     def _delete_files(image_path: str | None, thumbnail_path: str | None) -> None:
@@ -82,8 +88,8 @@ class StorageManager:
     def add_entry(self, entry: ClipboardEntry) -> int:
         cursor = self._conn.execute(
             """INSERT INTO clipboard_entries
-               (content_type, text_content, image_path, preview, content_hash, byte_size, created_at, pinned, source_app, thumbnail_path, is_sensitive, masked_preview)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               (content_type, text_content, image_path, preview, content_hash, byte_size, created_at, pinned, source_app, thumbnail_path, is_sensitive, masked_preview, rtf_data, html_data)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 entry.content_type.value,
                 entry.text_content,
@@ -97,6 +103,8 @@ class StorageManager:
                 entry.thumbnail_path,
                 int(entry.is_sensitive),
                 entry.masked_preview,
+                entry.rtf_data,
+                entry.html_data,
             ),
         )
         self._conn.commit()
@@ -228,6 +236,8 @@ class StorageManager:
         thumbnail_path = row["thumbnail_path"] if "thumbnail_path" in keys else None
         is_sensitive = bool(row["is_sensitive"]) if "is_sensitive" in keys else False
         masked_preview = row["masked_preview"] if "masked_preview" in keys else None
+        rtf_data = bytes(row["rtf_data"]) if "rtf_data" in keys and row["rtf_data"] is not None else None
+        html_data = bytes(row["html_data"]) if "html_data" in keys and row["html_data"] is not None else None
         return ClipboardEntry(
             id=row["id"],
             content_type=ContentType(row["content_type"]),
@@ -242,4 +252,6 @@ class StorageManager:
             thumbnail_path=thumbnail_path,
             is_sensitive=is_sensitive,
             masked_preview=masked_preview,
+            rtf_data=rtf_data,
+            html_data=html_data,
         )

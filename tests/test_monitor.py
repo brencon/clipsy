@@ -1,3 +1,6 @@
+import importlib
+import sys
+import types as stdlib_types
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -82,6 +85,29 @@ class TestCheckClipboard:
         assert monitor.check_clipboard() is False
         assert storage.count() == 0
 
+    def test_empty_text_returns_no_entry(self, monitor, mock_pasteboard, storage):
+        mock_pasteboard.changeCount.return_value = 1
+        mock_pasteboard.types.return_value = ["public.utf8-plain-text"]
+        mock_pasteboard.stringForType_.return_value = ""
+
+        with patch("clipsy.monitor.NSPasteboardTypeString", "public.utf8-plain-text"):
+            assert monitor.check_clipboard() is False
+
+        assert storage.count() == 0
+
+    def test_oversized_text_skipped(self, monitor, mock_pasteboard, storage):
+        mock_pasteboard.changeCount.return_value = 1
+        mock_pasteboard.types.return_value = ["public.utf8-plain-text"]
+        mock_pasteboard.stringForType_.return_value = "x" * 2_000_000
+
+        with (
+            patch("clipsy.monitor.NSPasteboardTypeString", "public.utf8-plain-text"),
+            patch("clipsy.monitor.MAX_TEXT_SIZE", 1_000_000),
+        ):
+            assert monitor.check_clipboard() is False
+
+        assert storage.count() == 0
+
     def test_none_types_no_crash(self, monitor, mock_pasteboard):
         mock_pasteboard.changeCount.return_value = 1
         mock_pasteboard.types.return_value = None
@@ -107,6 +133,21 @@ class TestFileClipboard:
         assert len(entries) == 1
         assert entries[0].content_type == ContentType.FILE
         assert "document.pdf" in entries[0].preview
+
+    def test_empty_filenames_returns_no_entry(self, monitor, mock_pasteboard, storage):
+        mock_pasteboard.changeCount.return_value = 1
+        mock_pasteboard.types.return_value = ["NSFilenamesPboardType"]
+        mock_pasteboard.propertyListForType_.return_value = None
+
+        with (
+            patch("clipsy.monitor.NSPasteboardTypeString", "public.utf8-plain-text"),
+            patch("clipsy.monitor.NSPasteboardTypePNG", "public.png"),
+            patch("clipsy.monitor.NSPasteboardTypeTIFF", "public.tiff"),
+            patch("clipsy.monitor.NSFilenamesPboardType", "NSFilenamesPboardType"),
+        ):
+            assert monitor.check_clipboard() is False
+
+        assert storage.count() == 0
 
     def test_multiple_files(self, monitor, mock_pasteboard, storage):
         mock_pasteboard.changeCount.return_value = 1
@@ -470,3 +511,29 @@ class TestRichTextClipboard:
         entries = storage.get_recent()
         assert len(entries) == 1
         assert entries[0].rtf_data is None
+
+
+class TestImportFallbacks:
+    def test_rtf_and_html_import_fallback(self):
+        import clipsy.monitor as monitor_mod
+
+        real_appkit = sys.modules["AppKit"]
+
+        fake_appkit = stdlib_types.ModuleType("AppKit")
+        for attr in (
+            "NSPasteboard",
+            "NSPasteboardTypePNG",
+            "NSPasteboardTypeTIFF",
+            "NSPasteboardTypeString",
+            "NSFilenamesPboardType",
+        ):
+            setattr(fake_appkit, attr, getattr(real_appkit, attr))
+
+        try:
+            sys.modules["AppKit"] = fake_appkit
+            importlib.reload(monitor_mod)
+            assert monitor_mod.NSPasteboardTypeRTF == "public.rtf"
+            assert monitor_mod.NSPasteboardTypeHTML == "public.html"
+        finally:
+            sys.modules["AppKit"] = real_appkit
+            importlib.reload(monitor_mod)

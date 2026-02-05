@@ -25,3 +25,4 @@ def _parse_menu_display_count() -> int:
 MENU_DISPLAY_COUNT = _parse_menu_display_count()
 THUMBNAIL_SIZE = (32, 32)  # pixels, for menu icon display
 REDACT_SENSITIVE = True  # mask sensitive data in preview (API keys, passwords, etc.)
+MAX_PINNED_ENTRIES = 5  # maximum number of pinned entries allowed

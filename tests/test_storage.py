@@ -389,6 +389,58 @@ class TestRichTextEntries:
         assert results[0].rtf_data == rtf_bytes
 
 
+class TestPinnedEntries:
+    def test_get_pinned_empty(self, storage):
+        assert storage.get_pinned() == []
+
+    def test_get_pinned_returns_pinned_entries(self, storage, make_entry):
+        id1 = storage.add_entry(make_entry("entry 1"))
+        id2 = storage.add_entry(make_entry("entry 2", content_hash="hash2"))
+        storage.toggle_pin(id1)
+
+        pinned = storage.get_pinned()
+        assert len(pinned) == 1
+        assert pinned[0].id == id1
+        assert pinned[0].pinned is True
+
+    def test_count_pinned(self, storage, make_entry):
+        assert storage.count_pinned() == 0
+
+        id1 = storage.add_entry(make_entry("entry 1"))
+        id2 = storage.add_entry(make_entry("entry 2", content_hash="hash2"))
+        storage.toggle_pin(id1)
+        storage.toggle_pin(id2)
+
+        assert storage.count_pinned() == 2
+
+    def test_toggle_pin_on_and_off(self, storage, make_entry):
+        entry_id = storage.add_entry(make_entry("test"))
+
+        # Pin
+        result = storage.toggle_pin(entry_id)
+        assert result is True
+        assert storage.get_entry(entry_id).pinned is True
+
+        # Unpin
+        result = storage.toggle_pin(entry_id)
+        assert result is False
+        assert storage.get_entry(entry_id).pinned is False
+
+    def test_pinned_entries_ordered_by_created_at(self, storage, make_entry):
+        import time
+
+        id1 = storage.add_entry(make_entry("older", content_hash="h1"))
+        time.sleep(0.01)
+        id2 = storage.add_entry(make_entry("newer", content_hash="h2"))
+        storage.toggle_pin(id1)
+        storage.toggle_pin(id2)
+
+        pinned = storage.get_pinned()
+        assert len(pinned) == 2
+        assert pinned[0].id == id2  # newer first
+        assert pinned[1].id == id1
+
+
 class TestRichTextMigration:
     def test_migrate_adds_rtf_and_html_columns(self, tmp_path):
         """Test that migration adds rtf_data and html_data to old databases."""

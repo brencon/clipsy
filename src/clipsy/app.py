@@ -5,7 +5,7 @@ from pathlib import Path
 import rumps
 
 from clipsy import __version__
-from clipsy.config import DB_PATH, IMAGE_DIR, MENU_DISPLAY_COUNT, POLL_INTERVAL, REDACT_SENSITIVE, THUMBNAIL_SIZE
+from clipsy.config import DB_PATH, IMAGE_DIR, MAX_PINNED_ENTRIES, MENU_DISPLAY_COUNT, POLL_INTERVAL, REDACT_SENSITIVE, THUMBNAIL_SIZE
 from clipsy.models import ClipboardEntry, ContentType
 from clipsy.monitor import ClipboardMonitor
 from clipsy.storage import StorageManager
@@ -34,10 +34,22 @@ class ClipsyApp(rumps.App):
             None,  # separator
         ]
 
-        entries = self._storage.get_recent(limit=MENU_DISPLAY_COUNT)
         self._entry_ids.clear()
 
-        if not entries:
+        # Add pinned submenu if there are pinned entries
+        pinned_entries = self._storage.get_pinned()
+        if pinned_entries:
+            pinned_menu = rumps.MenuItem("📌 Pinned")
+            for entry in pinned_entries:
+                pinned_menu.add(self._create_entry_menu_item(entry))
+            self.menu.add(pinned_menu)
+            self.menu.add(None)  # separator
+
+        entries = self._storage.get_recent(limit=MENU_DISPLAY_COUNT)
+        # Filter out pinned entries from recent list
+        entries = [e for e in entries if not e.pinned]
+
+        if not entries and not pinned_entries:
             self.menu.add(rumps.MenuItem("(No clipboard history)", callback=None))
         else:
             for entry in entries:
@@ -118,6 +130,17 @@ class ClipsyApp(rumps.App):
         if entry is None:
             return
 
+        # Check if Option key is held (for pin toggle)
+        try:
+            from AppKit import NSAlternateKeyMask, NSEvent
+
+            modifier_flags = NSEvent.modifierFlags()
+            if modifier_flags & NSAlternateKeyMask:
+                self._on_pin_toggle(entry)
+                return
+        except Exception:
+            pass  # If we can't check modifiers, proceed with normal copy
+
         try:
             from AppKit import NSPasteboard, NSPasteboardTypePNG, NSPasteboardTypeString
             from Foundation import NSData
@@ -160,6 +183,27 @@ class ClipsyApp(rumps.App):
                 rumps.notification("Clipsy", "", "Copied to clipboard", sound=False)
         except Exception:
             logger.exception("Error copying entry to clipboard")
+
+    def _on_pin_toggle(self, entry: ClipboardEntry) -> None:
+        """Toggle pin status for an entry."""
+        if entry.pinned:
+            # Unpin
+            self._storage.toggle_pin(entry.id)
+            rumps.notification("Clipsy", "", "Unpinned", sound=False)
+        else:
+            # Check if we can pin (not sensitive, under limit)
+            if entry.is_sensitive:
+                rumps.notification("Clipsy", "", "Cannot pin sensitive data", sound=False)
+                return
+
+            if self._storage.count_pinned() >= MAX_PINNED_ENTRIES:
+                rumps.notification("Clipsy", "", f"Maximum {MAX_PINNED_ENTRIES} pinned items", sound=False)
+                return
+
+            self._storage.toggle_pin(entry.id)
+            rumps.notification("Clipsy", "", "Pinned", sound=False)
+
+        self._refresh_menu()
 
     def _on_search(self, _sender) -> None:
         response = rumps.Window(

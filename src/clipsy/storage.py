@@ -211,6 +211,16 @@ class StorageManager:
         row = self._conn.execute("SELECT COUNT(*) as cnt FROM clipboard_entries").fetchone()
         return row["cnt"]
 
+    def get_pinned(self) -> list[ClipboardEntry]:
+        rows = self._conn.execute(
+            "SELECT * FROM clipboard_entries WHERE pinned = 1 ORDER BY created_at DESC"
+        ).fetchall()
+        return [self._row_to_entry(r) for r in rows]
+
+    def count_pinned(self) -> int:
+        row = self._conn.execute("SELECT COUNT(*) as cnt FROM clipboard_entries WHERE pinned = 1").fetchone()
+        return row["cnt"]
+
     def close(self) -> None:
         self._conn.close()
 

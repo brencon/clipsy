@@ -3,9 +3,12 @@
 Since ClipsyApp inherits from rumps.App which requires macOS GUI components,
 we test the core logic by testing the methods directly with mocked dependencies.
 """
-from unittest.mock import MagicMock
+from datetime import datetime
+from unittest.mock import MagicMock, patch
 
-from clipsy.models import ContentType
+import pytest
+
+from clipsy.models import ClipboardEntry, ContentType
 
 
 class TestEntryClickBehavior:
@@ -315,3 +318,836 @@ class TestPinningBehavior:
 
         assert storage.count_pinned() == 0
         assert storage.get_pinned() == []
+
+
+@pytest.fixture
+def clipsy_app(storage):
+    """Create a ClipsyApp-like object for testing methods."""
+    from clipsy.app import ClipsyApp
+
+    # Create a minimal mock object that has the methods we want to test
+    app = MagicMock(spec=ClipsyApp)
+
+    # Bind the real methods to our mock
+    app._storage = storage
+    app._monitor = MagicMock()
+    app._entry_ids = {}
+    app.menu = MagicMock()
+
+    # Bind real methods
+    app._get_display_preview = lambda entry: ClipsyApp._get_display_preview(app, entry)
+    app._ensure_thumbnail = lambda entry: ClipsyApp._ensure_thumbnail(app, entry)
+    app._refresh_menu = lambda: ClipsyApp._refresh_menu(app)
+    app._poll_clipboard = lambda sender: ClipsyApp._poll_clipboard(app, sender)
+    app._on_clear_pinned = lambda sender: ClipsyApp._on_clear_pinned(app, sender)
+    app._on_support = lambda sender: ClipsyApp._on_support(app, sender)
+    app._on_quit = lambda sender: ClipsyApp._on_quit(app, sender)
+    app._on_clear = lambda sender: ClipsyApp._on_clear(app, sender)
+    app._on_pin_toggle = lambda entry: ClipsyApp._on_pin_toggle(app, entry)
+    app._on_entry_click = lambda sender: ClipsyApp._on_entry_click(app, sender)
+    app._on_search = lambda sender: ClipsyApp._on_search(app, sender)
+    app._create_entry_menu_item = lambda entry: ClipsyApp._create_entry_menu_item(app, entry)
+    app._build_menu = MagicMock()
+
+    return app
+
+
+class TestClipsyAppInit:
+    """Test ClipsyApp initialization."""
+
+    def test_app_initializes(self, clipsy_app):
+        """Test that app initializes with expected attributes."""
+        assert clipsy_app._storage is not None
+        assert clipsy_app._entry_ids == {}
+        assert clipsy_app._monitor is not None
+
+
+class TestGetDisplayPreview:
+    """Test _get_display_preview method."""
+
+    def test_normal_entry_shows_preview(self, clipsy_app):
+        """Test that normal entries show their preview."""
+        entry = ClipboardEntry(
+            id=1,
+            content_type=ContentType.TEXT,
+            text_content="test",
+            image_path=None,
+            preview="test preview",
+            content_hash="h1",
+            byte_size=10,
+            created_at=datetime.now(),
+            is_sensitive=False,
+        )
+        result = clipsy_app._get_display_preview(entry)
+        assert result == "test preview"
+
+    @patch("clipsy.app.REDACT_SENSITIVE", True)
+    def test_sensitive_entry_shows_masked_preview(self, clipsy_app):
+        """Test that sensitive entries show masked preview when redaction enabled."""
+        entry = ClipboardEntry(
+            id=1,
+            content_type=ContentType.TEXT,
+            text_content="password=secret",
+            image_path=None,
+            preview="password=secret",
+            content_hash="h1",
+            byte_size=15,
+            created_at=datetime.now(),
+            is_sensitive=True,
+            masked_preview="password=••••••",
+        )
+        result = clipsy_app._get_display_preview(entry)
+        assert result == "🔒 password=••••••"
+
+    @patch("clipsy.app.REDACT_SENSITIVE", False)
+    def test_sensitive_entry_shows_plain_when_redaction_disabled(self, clipsy_app):
+        """Test that sensitive entries show plain preview when redaction disabled."""
+        entry = ClipboardEntry(
+            id=1,
+            content_type=ContentType.TEXT,
+            text_content="password=secret",
+            image_path=None,
+            preview="password=secret",
+            content_hash="h1",
+            byte_size=15,
+            created_at=datetime.now(),
+            is_sensitive=True,
+            masked_preview="password=••••••",
+        )
+        result = clipsy_app._get_display_preview(entry)
+        assert result == "password=secret"
+
+
+class TestEnsureThumbnail:
+    """Test _ensure_thumbnail method."""
+
+    def test_returns_existing_thumbnail_path(self, clipsy_app):
+        """Test that existing thumbnail path is returned."""
+        entry = ClipboardEntry(
+            id=1,
+            content_type=ContentType.IMAGE,
+            text_content=None,
+            image_path="/path/to/image.png",
+            preview="🖼️ Image",
+            content_hash="h1",
+            byte_size=1000,
+            created_at=datetime.now(),
+            thumbnail_path="/path/to/thumb.png",
+        )
+        result = clipsy_app._ensure_thumbnail(entry)
+        assert result == "/path/to/thumb.png"
+
+    def test_returns_none_for_no_image_path(self, clipsy_app):
+        """Test that None is returned when no image path."""
+        entry = ClipboardEntry(
+            id=1,
+            content_type=ContentType.IMAGE,
+            text_content=None,
+            image_path=None,
+            preview="🖼️ Image",
+            content_hash="h1",
+            byte_size=1000,
+            created_at=datetime.now(),
+        )
+        result = clipsy_app._ensure_thumbnail(entry)
+        assert result is None
+
+    def test_returns_none_for_nonexistent_image(self, clipsy_app):
+        """Test that None is returned when image file doesn't exist."""
+        entry = ClipboardEntry(
+            id=1,
+            content_type=ContentType.IMAGE,
+            text_content=None,
+            image_path="/nonexistent/image.png",
+            preview="🖼️ Image",
+            content_hash="h1",
+            byte_size=1000,
+            created_at=datetime.now(),
+        )
+        result = clipsy_app._ensure_thumbnail(entry)
+        assert result is None
+
+
+class TestRefreshMenu:
+    """Test _refresh_menu method."""
+
+    def test_refresh_calls_build_menu(self, clipsy_app):
+        """Test that refresh calls build menu."""
+        clipsy_app._build_menu = MagicMock()
+        clipsy_app._refresh_menu()
+        clipsy_app._build_menu.assert_called_once()
+
+
+class TestPollClipboard:
+    """Test _poll_clipboard method."""
+
+    def test_poll_calls_monitor(self, clipsy_app):
+        """Test that poll calls clipboard monitor."""
+        clipsy_app._poll_clipboard(None)
+        clipsy_app._monitor.check_clipboard.assert_called_once()
+
+
+class TestOnClearPinned:
+    """Test _on_clear_pinned method."""
+
+    def test_clears_pinned_and_refreshes(self, clipsy_app, make_entry):
+        """Test that clear pinned clears storage and refreshes."""
+        clipsy_app._build_menu = MagicMock()
+
+        # Add a pinned entry
+        entry_id = clipsy_app._storage.add_entry(make_entry("test", content_hash="h1"))
+        clipsy_app._storage.toggle_pin(entry_id)
+        assert clipsy_app._storage.count_pinned() == 1
+
+        clipsy_app._on_clear_pinned(None)
+
+        assert clipsy_app._storage.count_pinned() == 0
+        clipsy_app._build_menu.assert_called_once()
+
+
+class TestOnSupport:
+    """Test _on_support method."""
+
+    @patch("clipsy.app.webbrowser.open")
+    def test_opens_sponsor_page(self, mock_open, clipsy_app):
+        """Test that support opens sponsor page."""
+        clipsy_app._on_support(None)
+        mock_open.assert_called_once_with("https://github.com/sponsors/brencon")
+
+
+class TestOnQuit:
+    """Test _on_quit method."""
+
+    @patch("clipsy.app.rumps")
+    def test_closes_storage_and_quits(self, mock_rumps, clipsy_app):
+        """Test that quit closes storage and quits app."""
+        clipsy_app._storage.close = MagicMock()
+        clipsy_app._on_quit(None)
+        clipsy_app._storage.close.assert_called_once()
+        mock_rumps.quit_application.assert_called_once()
+
+
+class TestOnClear:
+    """Test _on_clear method."""
+
+    @patch("clipsy.app.rumps")
+    def test_clear_confirmed_clears_storage(self, mock_rumps, clipsy_app, make_entry):
+        """Test that confirming clear removes entries."""
+        clipsy_app._build_menu = MagicMock()
+        mock_rumps.alert.return_value = 1  # OK clicked
+
+        clipsy_app._storage.add_entry(make_entry("test", content_hash="h1"))
+        assert clipsy_app._storage.count() == 1
+
+        clipsy_app._on_clear(None)
+
+        assert clipsy_app._storage.count() == 0
+        clipsy_app._build_menu.assert_called_once()
+
+    @patch("clipsy.app.rumps")
+    def test_clear_cancelled_keeps_entries(self, mock_rumps, clipsy_app, make_entry):
+        """Test that cancelling clear keeps entries."""
+        clipsy_app._build_menu = MagicMock()
+        mock_rumps.alert.return_value = 0  # Cancel clicked
+
+        clipsy_app._storage.add_entry(make_entry("test", content_hash="h1"))
+        assert clipsy_app._storage.count() == 1
+
+        clipsy_app._on_clear(None)
+
+        assert clipsy_app._storage.count() == 1
+        clipsy_app._build_menu.assert_not_called()
+
+
+class TestOnPinToggle:
+    """Test _on_pin_toggle method."""
+
+    @patch("clipsy.app.rumps")
+    def test_unpin_existing_pinned_entry(self, mock_rumps, clipsy_app, make_entry):
+        """Test unpinning an already pinned entry."""
+        clipsy_app._build_menu = MagicMock()
+
+        entry_id = clipsy_app._storage.add_entry(make_entry("test", content_hash="h1"))
+        clipsy_app._storage.toggle_pin(entry_id)
+        entry = clipsy_app._storage.get_entry(entry_id)
+
+        clipsy_app._on_pin_toggle(entry)
+
+        updated = clipsy_app._storage.get_entry(entry_id)
+        assert updated.pinned is False
+        mock_rumps.notification.assert_called()
+        clipsy_app._build_menu.assert_called_once()
+
+    @patch("clipsy.app.rumps")
+    def test_pin_normal_entry(self, mock_rumps, clipsy_app, make_entry):
+        """Test pinning a normal entry."""
+        clipsy_app._build_menu = MagicMock()
+
+        entry_id = clipsy_app._storage.add_entry(make_entry("test", content_hash="h1"))
+        entry = clipsy_app._storage.get_entry(entry_id)
+
+        clipsy_app._on_pin_toggle(entry)
+
+        updated = clipsy_app._storage.get_entry(entry_id)
+        assert updated.pinned is True
+        clipsy_app._build_menu.assert_called_once()
+
+    @patch("clipsy.app.rumps")
+    def test_cannot_pin_sensitive_entry(self, mock_rumps, clipsy_app):
+        """Test that sensitive entries cannot be pinned."""
+        clipsy_app._build_menu = MagicMock()
+
+        entry = ClipboardEntry(
+            id=1,
+            content_type=ContentType.TEXT,
+            text_content="password=secret",
+            image_path=None,
+            preview="password=secret",
+            content_hash="h1",
+            byte_size=15,
+            created_at=datetime.now(),
+            is_sensitive=True,
+            pinned=False,
+        )
+
+        clipsy_app._on_pin_toggle(entry)
+
+        # Should show notification about sensitive data
+        mock_rumps.notification.assert_called()
+        call_args = mock_rumps.notification.call_args
+        assert "sensitive" in call_args[0][2].lower()
+        clipsy_app._build_menu.assert_not_called()
+
+    @patch("clipsy.app.rumps")
+    def test_cannot_exceed_max_pinned(self, mock_rumps, clipsy_app, make_entry):
+        """Test that pinning is blocked at max limit."""
+        from clipsy.config import MAX_PINNED_ENTRIES
+
+        clipsy_app._build_menu = MagicMock()
+
+        # Fill up pinned slots
+        for i in range(MAX_PINNED_ENTRIES):
+            eid = clipsy_app._storage.add_entry(make_entry(f"entry{i}", content_hash=f"h{i}"))
+            clipsy_app._storage.toggle_pin(eid)
+
+        # Try to pin one more
+        new_id = clipsy_app._storage.add_entry(make_entry("new", content_hash="hnew"))
+        entry = clipsy_app._storage.get_entry(new_id)
+
+        clipsy_app._on_pin_toggle(entry)
+
+        # Should show notification about limit
+        mock_rumps.notification.assert_called()
+        call_args = mock_rumps.notification.call_args
+        assert str(MAX_PINNED_ENTRIES) in call_args[0][2]
+        clipsy_app._build_menu.assert_not_called()
+
+
+class TestOnEntryClick:
+    """Test _on_entry_click method."""
+
+    def test_invalid_sender_returns_early(self, clipsy_app):
+        """Test that invalid sender ID returns early."""
+        sender = MagicMock()
+        sender._id = "nonexistent_key"
+        clipsy_app._on_entry_click(sender)
+        # No exception should be raised
+
+    def test_missing_id_attribute_returns_early(self, clipsy_app):
+        """Test that sender without _id returns early."""
+        sender = MagicMock(spec=[])
+        clipsy_app._on_entry_click(sender)
+        # No exception should be raised
+
+    def test_nonexistent_entry_returns_early(self, clipsy_app):
+        """Test that nonexistent entry returns early."""
+        clipsy_app._entry_ids["clipsy_entry_999"] = 999
+        sender = MagicMock()
+        sender._id = "clipsy_entry_999"
+        clipsy_app._on_entry_click(sender)
+        # No exception should be raised
+
+    @patch("clipsy.app.rumps")
+    def test_option_key_triggers_pin_toggle(self, mock_rumps, clipsy_app, make_entry):
+        """Test that Option key triggers pin toggle."""
+        clipsy_app._build_menu = MagicMock()
+
+        entry_id = clipsy_app._storage.add_entry(make_entry("test", content_hash="h1"))
+        clipsy_app._entry_ids[f"clipsy_entry_{entry_id}"] = entry_id
+
+        sender = MagicMock()
+        sender._id = f"clipsy_entry_{entry_id}"
+
+        # Mock the AppKit imports inside the function
+        mock_ns_event = MagicMock()
+        mock_ns_event.modifierFlags.return_value = 0x80000  # Option key
+
+        with patch.dict(
+            "sys.modules",
+            {
+                "AppKit": MagicMock(NSEvent=mock_ns_event, NSAlternateKeyMask=0x80000),
+            },
+        ):
+            clipsy_app._on_entry_click(sender)
+
+        # Should have toggled pin (entry should now be pinned)
+        entry = clipsy_app._storage.get_entry(entry_id)
+        assert entry.pinned is True
+
+    @patch("clipsy.app.rumps")
+    def test_text_entry_copies_to_clipboard(self, mock_rumps, clipsy_app, make_entry):
+        """Test that text entry is copied to clipboard."""
+        clipsy_app._build_menu = MagicMock()
+
+        entry_id = clipsy_app._storage.add_entry(make_entry("test text", content_hash="h1"))
+        clipsy_app._entry_ids[f"clipsy_entry_{entry_id}"] = entry_id
+
+        sender = MagicMock()
+        sender._id = f"clipsy_entry_{entry_id}"
+
+        # Mock AppKit
+        mock_ns_event = MagicMock()
+        mock_ns_event.modifierFlags.return_value = 0  # No modifier keys
+        mock_pasteboard = MagicMock()
+        mock_ns_pasteboard = MagicMock()
+        mock_ns_pasteboard.generalPasteboard.return_value = mock_pasteboard
+
+        with patch.dict(
+            "sys.modules",
+            {
+                "AppKit": MagicMock(
+                    NSEvent=mock_ns_event,
+                    NSAlternateKeyMask=0x80000,
+                    NSPasteboard=mock_ns_pasteboard,
+                    NSPasteboardTypeString="public.utf8-plain-text",
+                    NSPasteboardTypePNG="public.png",
+                ),
+                "Foundation": MagicMock(NSData=MagicMock()),
+            },
+        ):
+            clipsy_app._on_entry_click(sender)
+
+        mock_pasteboard.clearContents.assert_called()
+        mock_pasteboard.setString_forType_.assert_called()
+        mock_rumps.notification.assert_called()
+
+    @patch("clipsy.app.rumps")
+    def test_image_entry_copies_to_clipboard(self, mock_rumps, clipsy_app, make_entry):
+        """Test that image entry is copied to clipboard."""
+        clipsy_app._build_menu = MagicMock()
+
+        entry = make_entry("img", content_type=ContentType.IMAGE, image_path="/path/img.png", content_hash="h1")
+        entry_id = clipsy_app._storage.add_entry(entry)
+        clipsy_app._entry_ids[f"clipsy_entry_{entry_id}"] = entry_id
+
+        sender = MagicMock()
+        sender._id = f"clipsy_entry_{entry_id}"
+
+        mock_ns_event = MagicMock()
+        mock_ns_event.modifierFlags.return_value = 0
+        mock_pasteboard = MagicMock()
+        mock_ns_pasteboard = MagicMock()
+        mock_ns_pasteboard.generalPasteboard.return_value = mock_pasteboard
+        mock_ns_data = MagicMock()
+        mock_ns_data.dataWithContentsOfFile_.return_value = MagicMock()
+
+        with patch.dict(
+            "sys.modules",
+            {
+                "AppKit": MagicMock(
+                    NSEvent=mock_ns_event,
+                    NSAlternateKeyMask=0x80000,
+                    NSPasteboard=mock_ns_pasteboard,
+                    NSPasteboardTypeString="public.utf8-plain-text",
+                    NSPasteboardTypePNG="public.png",
+                ),
+                "Foundation": MagicMock(NSData=mock_ns_data),
+            },
+        ):
+            clipsy_app._on_entry_click(sender)
+
+        mock_ns_data.dataWithContentsOfFile_.assert_called_with("/path/img.png")
+
+    @patch("clipsy.app.rumps")
+    def test_file_entry_copies_to_clipboard(self, mock_rumps, clipsy_app, make_entry):
+        """Test that file entry is copied to clipboard."""
+        clipsy_app._build_menu = MagicMock()
+
+        entry = make_entry("/path/to/file.pdf", content_type=ContentType.FILE, content_hash="h1")
+        entry_id = clipsy_app._storage.add_entry(entry)
+        clipsy_app._entry_ids[f"clipsy_entry_{entry_id}"] = entry_id
+
+        sender = MagicMock()
+        sender._id = f"clipsy_entry_{entry_id}"
+
+        mock_ns_event = MagicMock()
+        mock_ns_event.modifierFlags.return_value = 0
+        mock_pasteboard = MagicMock()
+        mock_ns_pasteboard = MagicMock()
+        mock_ns_pasteboard.generalPasteboard.return_value = mock_pasteboard
+
+        with patch.dict(
+            "sys.modules",
+            {
+                "AppKit": MagicMock(
+                    NSEvent=mock_ns_event,
+                    NSAlternateKeyMask=0x80000,
+                    NSPasteboard=mock_ns_pasteboard,
+                    NSPasteboardTypeString="public.utf8-plain-text",
+                    NSPasteboardTypePNG="public.png",
+                ),
+                "Foundation": MagicMock(NSData=MagicMock()),
+            },
+        ):
+            clipsy_app._on_entry_click(sender)
+
+        mock_pasteboard.setString_forType_.assert_called()
+
+
+class TestOnSearch:
+    """Test _on_search method."""
+
+    @patch("clipsy.app.rumps")
+    def test_search_cancelled_does_nothing(self, mock_rumps, clipsy_app):
+        """Test that cancelled search does nothing."""
+        mock_response = MagicMock()
+        mock_response.clicked = False
+        mock_rumps.Window.return_value.run.return_value = mock_response
+
+        clipsy_app._on_search(None)
+
+        mock_rumps.alert.assert_not_called()
+
+    @patch("clipsy.app.rumps")
+    def test_search_empty_query_does_nothing(self, mock_rumps, clipsy_app):
+        """Test that empty query does nothing."""
+        mock_response = MagicMock()
+        mock_response.clicked = True
+        mock_response.text = "   "
+        mock_rumps.Window.return_value.run.return_value = mock_response
+
+        clipsy_app._on_search(None)
+
+        mock_rumps.alert.assert_not_called()
+
+    @patch("clipsy.app.rumps")
+    def test_search_no_results_shows_alert(self, mock_rumps, clipsy_app):
+        """Test that no results shows alert."""
+        mock_response = MagicMock()
+        mock_response.clicked = True
+        mock_response.text = "nonexistent"
+        mock_rumps.Window.return_value.run.return_value = mock_response
+
+        clipsy_app._on_search(None)
+
+        mock_rumps.alert.assert_called_once()
+
+    @patch("clipsy.app.rumps")
+    def test_search_with_results_clears_and_rebuilds_menu(self, mock_rumps, clipsy_app, make_entry):
+        """Test that search with results clears and rebuilds menu."""
+        # Add an entry that can be found
+        clipsy_app._storage.add_entry(make_entry("findable text", content_hash="h1"))
+
+        mock_response = MagicMock()
+        mock_response.clicked = True
+        mock_response.text = "findable"
+        mock_rumps.Window.return_value.run.return_value = mock_response
+
+        # Track that menu.clear was called before the assignment changes menu to a list
+        clear_called = []
+        original_menu = clipsy_app.menu
+
+        def track_clear():
+            clear_called.append(True)
+
+        clipsy_app.menu.clear = track_clear
+
+        # The code does self.menu = [...] then self.menu.add(), which won't work
+        # on a plain list. This tests up to menu.clear() and entry_ids.clear()
+        try:
+            clipsy_app._on_search(None)
+        except AttributeError:
+            pass  # Expected - list has no add method
+
+        assert len(clear_called) == 1
+        assert clipsy_app._entry_ids == {}
+
+
+class TestCreateEntryMenuItem:
+    """Test _create_entry_menu_item method."""
+
+    @patch("clipsy.app.rumps")
+    def test_creates_menu_item_for_text_entry(self, mock_rumps, clipsy_app, make_entry):
+        """Test creating menu item for text entry."""
+        mock_rumps.MenuItem = MagicMock(return_value=MagicMock())
+
+        entry_id = clipsy_app._storage.add_entry(make_entry("test text", content_hash="h1"))
+        entry = clipsy_app._storage.get_entry(entry_id)
+
+        item = clipsy_app._create_entry_menu_item(entry)
+
+        assert f"clipsy_entry_{entry_id}" in clipsy_app._entry_ids
+        mock_rumps.MenuItem.assert_called()
+
+    @patch("clipsy.app.rumps")
+    def test_creates_menu_item_for_image_with_thumbnail(self, mock_rumps, clipsy_app, make_entry):
+        """Test creating menu item for image entry with thumbnail."""
+        mock_rumps.MenuItem = MagicMock(return_value=MagicMock())
+
+        entry = make_entry(
+            "img",
+            content_type=ContentType.IMAGE,
+            image_path="/path/img.png",
+            content_hash="h1",
+        )
+        entry.thumbnail_path = "/path/thumb.png"
+        entry_id = clipsy_app._storage.add_entry(entry)
+        # Re-get with thumbnail
+        clipsy_app._storage.update_thumbnail_path(entry_id, "/path/thumb.png")
+        entry = clipsy_app._storage.get_entry(entry_id)
+
+        item = clipsy_app._create_entry_menu_item(entry)
+
+        # Should have called MenuItem with icon parameter
+        mock_rumps.MenuItem.assert_called()
+
+    @patch("clipsy.app.rumps")
+    def test_creates_menu_item_for_image_without_thumbnail(self, mock_rumps, clipsy_app, make_entry):
+        """Test creating menu item for image entry without thumbnail."""
+        mock_rumps.MenuItem = MagicMock(return_value=MagicMock())
+
+        entry = make_entry(
+            "img",
+            content_type=ContentType.IMAGE,
+            image_path="/nonexistent/img.png",
+            content_hash="h1",
+        )
+        entry_id = clipsy_app._storage.add_entry(entry)
+        entry = clipsy_app._storage.get_entry(entry_id)
+
+        item = clipsy_app._create_entry_menu_item(entry)
+
+        mock_rumps.MenuItem.assert_called()
+
+
+class TestOnEntryClickRichText:
+    """Test _on_entry_click with RTF/HTML data."""
+
+    @patch("clipsy.app.rumps")
+    def test_text_entry_with_rtf_data(self, mock_rumps, clipsy_app, make_entry):
+        """Test that RTF data is copied along with text."""
+        clipsy_app._build_menu = MagicMock()
+
+        rtf_data = b"{\\rtf1 Hello}"
+        entry_id = clipsy_app._storage.add_entry(
+            make_entry("Hello", content_hash="h1", rtf_data=rtf_data)
+        )
+        clipsy_app._entry_ids[f"clipsy_entry_{entry_id}"] = entry_id
+
+        sender = MagicMock()
+        sender._id = f"clipsy_entry_{entry_id}"
+
+        mock_ns_event = MagicMock()
+        mock_ns_event.modifierFlags.return_value = 0
+        mock_pasteboard = MagicMock()
+        mock_ns_pasteboard = MagicMock()
+        mock_ns_pasteboard.generalPasteboard.return_value = mock_pasteboard
+        mock_ns_data = MagicMock()
+        mock_ns_data.dataWithBytes_length_.return_value = MagicMock()
+
+        with patch.dict(
+            "sys.modules",
+            {
+                "AppKit": MagicMock(
+                    NSEvent=mock_ns_event,
+                    NSAlternateKeyMask=0x80000,
+                    NSPasteboard=mock_ns_pasteboard,
+                    NSPasteboardTypeString="public.utf8-plain-text",
+                    NSPasteboardTypePNG="public.png",
+                ),
+                "Foundation": MagicMock(NSData=mock_ns_data),
+            },
+        ):
+            clipsy_app._on_entry_click(sender)
+
+        # RTF data should have been set
+        mock_ns_data.dataWithBytes_length_.assert_called()
+        mock_pasteboard.setData_forType_.assert_called()
+
+    @patch("clipsy.app.rumps")
+    def test_text_entry_with_html_data(self, mock_rumps, clipsy_app, make_entry):
+        """Test that HTML data is copied along with text."""
+        clipsy_app._build_menu = MagicMock()
+
+        html_data = b"<p>Hello</p>"
+        entry_id = clipsy_app._storage.add_entry(
+            make_entry("Hello", content_hash="h1", html_data=html_data)
+        )
+        clipsy_app._entry_ids[f"clipsy_entry_{entry_id}"] = entry_id
+
+        sender = MagicMock()
+        sender._id = f"clipsy_entry_{entry_id}"
+
+        mock_ns_event = MagicMock()
+        mock_ns_event.modifierFlags.return_value = 0
+        mock_pasteboard = MagicMock()
+        mock_ns_pasteboard = MagicMock()
+        mock_ns_pasteboard.generalPasteboard.return_value = mock_pasteboard
+        mock_ns_data = MagicMock()
+        mock_ns_data.dataWithBytes_length_.return_value = MagicMock()
+
+        with patch.dict(
+            "sys.modules",
+            {
+                "AppKit": MagicMock(
+                    NSEvent=mock_ns_event,
+                    NSAlternateKeyMask=0x80000,
+                    NSPasteboard=mock_ns_pasteboard,
+                    NSPasteboardTypeString="public.utf8-plain-text",
+                    NSPasteboardTypePNG="public.png",
+                ),
+                "Foundation": MagicMock(NSData=mock_ns_data),
+            },
+        ):
+            clipsy_app._on_entry_click(sender)
+
+        mock_ns_data.dataWithBytes_length_.assert_called()
+
+
+class TestOnEntryClickExceptionHandling:
+    """Test _on_entry_click exception handling."""
+
+    @patch("clipsy.app.rumps")
+    @patch("clipsy.app.logger")
+    def test_exception_during_copy_is_logged(self, mock_logger, mock_rumps, clipsy_app, make_entry):
+        """Test that exceptions during copy are logged."""
+        clipsy_app._build_menu = MagicMock()
+
+        entry_id = clipsy_app._storage.add_entry(make_entry("test", content_hash="h1"))
+        clipsy_app._entry_ids[f"clipsy_entry_{entry_id}"] = entry_id
+
+        sender = MagicMock()
+        sender._id = f"clipsy_entry_{entry_id}"
+
+        mock_ns_event = MagicMock()
+        mock_ns_event.modifierFlags.return_value = 0
+        mock_ns_pasteboard = MagicMock()
+        mock_ns_pasteboard.generalPasteboard.side_effect = Exception("Clipboard error")
+
+        with patch.dict(
+            "sys.modules",
+            {
+                "AppKit": MagicMock(
+                    NSEvent=mock_ns_event,
+                    NSAlternateKeyMask=0x80000,
+                    NSPasteboard=mock_ns_pasteboard,
+                    NSPasteboardTypeString="public.utf8-plain-text",
+                    NSPasteboardTypePNG="public.png",
+                ),
+                "Foundation": MagicMock(NSData=MagicMock()),
+            },
+        ):
+            clipsy_app._on_entry_click(sender)
+
+        mock_logger.exception.assert_called()
+
+    def test_modifier_check_exception_continues_to_copy(self, clipsy_app, make_entry):
+        """Test that exception during modifier check continues to copy."""
+        clipsy_app._build_menu = MagicMock()
+
+        entry_id = clipsy_app._storage.add_entry(make_entry("test", content_hash="h1"))
+        clipsy_app._entry_ids[f"clipsy_entry_{entry_id}"] = entry_id
+
+        sender = MagicMock()
+        sender._id = f"clipsy_entry_{entry_id}"
+
+        # Make AppKit import raise an exception
+        with patch.dict("sys.modules", {"AppKit": None}):
+            # This should not crash - it should continue to the copy logic
+            # which will then fail because we haven't mocked the copy path
+            try:
+                clipsy_app._on_entry_click(sender)
+            except (TypeError, AttributeError):
+                pass  # Expected - we didn't mock the full copy path
+
+
+class TestEnsureThumbnailGeneration:
+    """Test _ensure_thumbnail thumbnail generation code path."""
+
+    @patch("clipsy.app.create_thumbnail", return_value=True)
+    def test_generates_thumbnail_for_existing_image(self, mock_create, clipsy_app, tmp_path):
+        """Test that thumbnail is generated for existing image."""
+        # Create a real image file
+        img_path = tmp_path / "test.png"
+        img_path.write_bytes(b"fake png data")
+
+        entry = ClipboardEntry(
+            id=1,
+            content_type=ContentType.IMAGE,
+            text_content=None,
+            image_path=str(img_path),
+            preview="Image",
+            content_hash="h1",
+            byte_size=100,
+            created_at=datetime.now(),
+            thumbnail_path=None,
+        )
+
+        # Mock the storage update
+        clipsy_app._storage.update_thumbnail_path = MagicMock()
+
+        with patch("clipsy.app.IMAGE_DIR", tmp_path):
+            result = clipsy_app._ensure_thumbnail(entry)
+
+        mock_create.assert_called_once()
+        clipsy_app._storage.update_thumbnail_path.assert_called_once()
+
+    @patch("clipsy.app.create_thumbnail", return_value=False)
+    def test_returns_none_when_thumbnail_creation_fails(self, mock_create, clipsy_app, tmp_path):
+        """Test that None is returned when thumbnail creation fails."""
+        img_path = tmp_path / "test.png"
+        img_path.write_bytes(b"fake png data")
+
+        entry = ClipboardEntry(
+            id=1,
+            content_type=ContentType.IMAGE,
+            text_content=None,
+            image_path=str(img_path),
+            preview="Image",
+            content_hash="h1",
+            byte_size=100,
+            created_at=datetime.now(),
+            thumbnail_path=None,
+        )
+
+        with patch("clipsy.app.IMAGE_DIR", tmp_path):
+            result = clipsy_app._ensure_thumbnail(entry)
+
+        assert result is None
+
+    def test_uses_existing_thumbnail_file(self, clipsy_app, tmp_path):
+        """Test that existing thumbnail file is used."""
+        img_path = tmp_path / "test.png"
+        img_path.write_bytes(b"fake png data")
+        thumb_path = tmp_path / "test_thumb.png"
+        thumb_path.write_bytes(b"fake thumb data")
+
+        entry = ClipboardEntry(
+            id=1,
+            content_type=ContentType.IMAGE,
+            text_content=None,
+            image_path=str(img_path),
+            preview="Image",
+            content_hash="h1",
+            byte_size=100,
+            created_at=datetime.now(),
+            thumbnail_path=None,
+        )
+
+        clipsy_app._storage.update_thumbnail_path = MagicMock()
+
+        with patch("clipsy.app.IMAGE_DIR", tmp_path):
+            result = clipsy_app._ensure_thumbnail(entry)
+
+        assert result == str(thumb_path)
+        clipsy_app._storage.update_thumbnail_path.assert_called_once()

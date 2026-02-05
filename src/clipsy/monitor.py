@@ -57,83 +57,106 @@ class ClipboardMonitor:
             return None
 
         if NSPasteboardTypeString in types:
-            text = self._pasteboard.stringForType_(NSPasteboardTypeString)
-            if text:
-                text_bytes = text.encode("utf-8")
-                if len(text_bytes) <= MAX_TEXT_SIZE:
-                    content_hash = compute_hash(text_bytes)
-                    preview = truncate_text(text, PREVIEW_LENGTH)
-
-                    # Detect sensitive data
-                    is_sensitive = False
-                    masked_preview = None
-                    if REDACT_SENSITIVE:
-                        matches = detect_sensitive(text)
-                        if matches:
-                            is_sensitive = True
-                            masked_preview = truncate_text(mask_text(text, matches), PREVIEW_LENGTH)
-
-                    return ClipboardEntry(
-                        id=None,
-                        content_type=ContentType.TEXT,
-                        text_content=text,
-                        image_path=None,
-                        preview=preview,
-                        content_hash=content_hash,
-                        byte_size=len(text_bytes),
-                        created_at=datetime.now(),
-                        is_sensitive=is_sensitive,
-                        masked_preview=masked_preview,
-                    )
+            entry = self._read_text()
+            if entry:
+                return entry
 
         for img_type in (NSPasteboardTypePNG, NSPasteboardTypeTIFF):
             if img_type in types:
-                data = self._pasteboard.dataForType_(img_type)
-                if data is None:
-                    continue
-                img_bytes = bytes(data)
-                if len(img_bytes) > MAX_IMAGE_SIZE:
-                    logger.warning("Image too large (%d bytes), skipping", len(img_bytes))
-                    return None
-                content_hash = compute_hash(img_bytes)
-                is_png = img_type == NSPasteboardTypePNG
-                image_path, thumbnail_path = self._save_image(img_bytes, content_hash, is_png)
-                width, height = get_image_dimensions(img_bytes)
-                preview = f"[Image: {width}x{height}]" if width > 0 else "[Image]"
-                return ClipboardEntry(
-                    id=None,
-                    content_type=ContentType.IMAGE,
-                    text_content=None,
-                    image_path=str(image_path),
-                    preview=preview,
-                    content_hash=content_hash,
-                    byte_size=len(img_bytes),
-                    created_at=datetime.now(),
-                    thumbnail_path=str(thumbnail_path) if thumbnail_path else None,
-                )
+                entry = self._read_image(img_type)
+                if entry:
+                    return entry
 
         if NSFilenamesPboardType in types:
-            filenames = self._pasteboard.propertyListForType_(NSFilenamesPboardType)
-            if filenames:
-                file_list = list(filenames)
-                text = "\n".join(file_list)
-                content_hash = compute_hash(text)
-                if len(file_list) == 1:
-                    preview = truncate_text(Path(file_list[0]).name, PREVIEW_LENGTH)
-                else:
-                    preview = truncate_text(f"{len(file_list)} files: {Path(file_list[0]).name}, ...", PREVIEW_LENGTH)
-                return ClipboardEntry(
-                    id=None,
-                    content_type=ContentType.FILE,
-                    text_content=text,
-                    image_path=None,
-                    preview=preview,
-                    content_hash=content_hash,
-                    byte_size=len(text.encode("utf-8")),
-                    created_at=datetime.now(),
-                )
+            return self._read_files()
 
         return None
+
+    def _read_text(self) -> ClipboardEntry | None:
+        text = self._pasteboard.stringForType_(NSPasteboardTypeString)
+        if not text:
+            return None
+
+        text_bytes = text.encode("utf-8")
+        if len(text_bytes) > MAX_TEXT_SIZE:
+            return None
+
+        content_hash = compute_hash(text_bytes)
+        preview = truncate_text(text, PREVIEW_LENGTH)
+
+        is_sensitive = False
+        masked_preview = None
+        if REDACT_SENSITIVE:
+            matches = detect_sensitive(text)
+            if matches:
+                is_sensitive = True
+                masked_preview = truncate_text(mask_text(text, matches), PREVIEW_LENGTH)
+
+        return ClipboardEntry(
+            id=None,
+            content_type=ContentType.TEXT,
+            text_content=text,
+            image_path=None,
+            preview=preview,
+            content_hash=content_hash,
+            byte_size=len(text_bytes),
+            created_at=datetime.now(),
+            is_sensitive=is_sensitive,
+            masked_preview=masked_preview,
+        )
+
+    def _read_image(self, img_type) -> ClipboardEntry | None:
+        data = self._pasteboard.dataForType_(img_type)
+        if data is None:
+            return None
+
+        img_bytes = bytes(data)
+        if len(img_bytes) > MAX_IMAGE_SIZE:
+            logger.warning("Image too large (%d bytes), skipping", len(img_bytes))
+            return None
+
+        content_hash = compute_hash(img_bytes)
+        is_png = img_type == NSPasteboardTypePNG
+        image_path, thumbnail_path = self._save_image(img_bytes, content_hash, is_png)
+        width, height = get_image_dimensions(img_bytes)
+        preview = f"[Image: {width}x{height}]" if width > 0 else "[Image]"
+
+        return ClipboardEntry(
+            id=None,
+            content_type=ContentType.IMAGE,
+            text_content=None,
+            image_path=str(image_path),
+            preview=preview,
+            content_hash=content_hash,
+            byte_size=len(img_bytes),
+            created_at=datetime.now(),
+            thumbnail_path=str(thumbnail_path) if thumbnail_path else None,
+        )
+
+    def _read_files(self) -> ClipboardEntry | None:
+        filenames = self._pasteboard.propertyListForType_(NSFilenamesPboardType)
+        if not filenames:
+            return None
+
+        file_list = list(filenames)
+        text = "\n".join(file_list)
+        content_hash = compute_hash(text)
+
+        if len(file_list) == 1:
+            preview = truncate_text(Path(file_list[0]).name, PREVIEW_LENGTH)
+        else:
+            preview = truncate_text(f"{len(file_list)} files: {Path(file_list[0]).name}, ...", PREVIEW_LENGTH)
+
+        return ClipboardEntry(
+            id=None,
+            content_type=ContentType.FILE,
+            text_content=text,
+            image_path=None,
+            preview=preview,
+            content_hash=content_hash,
+            byte_size=len(text.encode("utf-8")),
+            created_at=datetime.now(),
+        )
 
     def _save_image(self, img_bytes: bytes, content_hash: str, is_png: bool) -> tuple[Path, Path | None]:
         ext = ".png" if is_png else ".tiff"

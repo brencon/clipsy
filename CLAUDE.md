@@ -71,10 +71,10 @@ python3 -m venv .venv
 ### Testing
 ```bash
 # Run all clipsy tests
-.venv/bin/python -m pytest tests/test_utils.py tests/test_storage.py tests/test_monitor.py -v
+.venv/bin/python -m pytest tests/ -v
 
 # Run with coverage
-.venv/bin/python -m pytest tests/test_utils.py tests/test_storage.py tests/test_monitor.py --cov=clipsy --cov-report=term-missing
+.venv/bin/python -m pytest tests/ --cov=clipsy --cov-report=term-missing
 
 # Run specific test file
 .venv/bin/python -m pytest tests/test_storage.py -v

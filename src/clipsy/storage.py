@@ -71,6 +71,14 @@ class StorageManager:
         if "masked_preview" not in columns:
             self._conn.execute("ALTER TABLE clipboard_entries ADD COLUMN masked_preview TEXT")
 
+    @staticmethod
+    def _delete_files(image_path: str | None, thumbnail_path: str | None) -> None:
+        for file_path in (image_path, thumbnail_path):
+            if file_path:
+                p = Path(file_path)
+                if p.exists():
+                    p.unlink()
+
     def add_entry(self, entry: ClipboardEntry) -> int:
         cursor = self._conn.execute(
             """INSERT INTO clipboard_entries
@@ -124,14 +132,7 @@ class StorageManager:
     def delete_entry(self, entry_id: int) -> None:
         entry = self.get_entry(entry_id)
         if entry:
-            if entry.image_path:
-                path = Path(entry.image_path)
-                if path.exists():
-                    path.unlink()
-            if entry.thumbnail_path:
-                thumb = Path(entry.thumbnail_path)
-                if thumb.exists():
-                    thumb.unlink()
+            self._delete_files(entry.image_path, entry.thumbnail_path)
         self._conn.execute("DELETE FROM clipboard_entries WHERE id = ?", (entry_id,))
         self._conn.commit()
 
@@ -169,14 +170,7 @@ class StorageManager:
 
         deleted = 0
         for row in rows:
-            if row["image_path"]:
-                path = Path(row["image_path"])
-                if path.exists():
-                    path.unlink()
-            if row["thumbnail_path"]:
-                thumb = Path(row["thumbnail_path"])
-                if thumb.exists():
-                    thumb.unlink()
+            self._delete_files(row["image_path"], row["thumbnail_path"])
             self._conn.execute("DELETE FROM clipboard_entries WHERE id = ?", (row["id"],))
             deleted += 1
 
@@ -201,14 +195,7 @@ class StorageManager:
             "SELECT image_path, thumbnail_path FROM clipboard_entries WHERE image_path IS NOT NULL OR thumbnail_path IS NOT NULL"
         ).fetchall()
         for row in rows:
-            if row["image_path"]:
-                path = Path(row["image_path"])
-                if path.exists():
-                    path.unlink()
-            if row["thumbnail_path"]:
-                thumb = Path(row["thumbnail_path"])
-                if thumb.exists():
-                    thumb.unlink()
+            self._delete_files(row["image_path"], row["thumbnail_path"])
         self._conn.execute("DELETE FROM clipboard_entries")
         self._conn.commit()
 

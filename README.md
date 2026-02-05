@@ -28,10 +28,19 @@ A lightweight clipboard history manager for macOS. Runs as a menu bar icon — n
 
 ## Installation
 
-### Via pip (recommended)
+### Via pipx (recommended)
+
+```bash
+brew install pipx
+pipx install clipsy
+clipsy install
+```
+
+### Via pip
 
 ```bash
 pip install clipsy
+clipsy install
 ```
 
 ### From source
@@ -41,14 +50,12 @@ git clone https://github.com/brencon/clipsy.git
 cd clipsy
 python3 -m venv .venv
 .venv/bin/pip install -e .
+.venv/bin/clipsy install
 ```
 
 ## Usage
 
-```bash
-# Run clipsy (a scissors icon appears in your menu bar)
-clipsy
-```
+After running `clipsy install`, the app runs in the background and starts automatically on login. A scissors icon (✂️) appears in your menu bar.
 
 Then just use your Mac normally. Every time you copy something, it shows up in the Clipsy menu:
 
@@ -71,19 +78,13 @@ Then just use your Mac normally. Every time you copy something, it shows up in t
 └── Quit Clipsy
 ```
 
-## Auto-Start on Login
-
-Run clipsy automatically when you log in — no terminal needed:
+## Commands
 
 ```bash
-# Install as a LaunchAgent
-scripts/install_launchagent.sh install
-
-# Check status
-scripts/install_launchagent.sh status
-
-# Remove auto-start
-scripts/install_launchagent.sh uninstall
+clipsy install    # Install as background service (starts on login)
+clipsy uninstall  # Remove from login items
+clipsy status     # Check if running
+clipsy            # Run in foreground (for debugging)
 ```
 
 ## Data Storage

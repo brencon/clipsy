@@ -346,7 +346,10 @@ def clipsy_app(storage):
     app._on_pin_toggle = lambda entry: ClipsyApp._on_pin_toggle(app, entry)
     app._on_entry_click = lambda sender: ClipsyApp._on_entry_click(app, sender)
     app._on_search = lambda sender: ClipsyApp._on_search(app, sender)
-    app._create_entry_menu_item = lambda entry: ClipsyApp._create_entry_menu_item(app, entry)
+    app._compute_entry_spec = lambda entry: ClipsyApp._compute_entry_spec(app, entry)
+    app._compute_menu_specs = lambda: ClipsyApp._compute_menu_specs(app)
+    app._compute_search_results_specs = lambda q, r: ClipsyApp._compute_search_results_specs(app, q, r)
+    app._init_app = lambda: ClipsyApp._init_app(app)
     app._build_menu = MagicMock()
 
     return app
@@ -846,53 +849,51 @@ class TestOnSearch:
     def test_search_with_results_clears_and_rebuilds_menu(self, mock_rumps, clipsy_app, make_entry):
         """Test that search with results clears and rebuilds menu."""
         # Add an entry that can be found
-        clipsy_app._storage.add_entry(make_entry("findable text", content_hash="h1"))
+        entry_id = clipsy_app._storage.add_entry(make_entry("findable text", content_hash="h1"))
 
         mock_response = MagicMock()
         mock_response.clicked = True
         mock_response.text = "findable"
         mock_rumps.Window.return_value.run.return_value = mock_response
 
-        # Track that menu.clear was called before the assignment changes menu to a list
+        # Track that menu.clear was called
         clear_called = []
-        original_menu = clipsy_app.menu
 
         def track_clear():
             clear_called.append(True)
 
         clipsy_app.menu.clear = track_clear
 
-        # The code does self.menu = [...] then self.menu.add(), which won't work
-        # on a plain list. This tests up to menu.clear() and entry_ids.clear()
-        try:
-            clipsy_app._on_search(None)
-        except AttributeError:
-            pass  # Expected - list has no add method
+        # Mock _render_menu_specs since it uses rumps
+        clipsy_app._render_menu_specs = MagicMock()
+
+        clipsy_app._on_search(None)
 
         assert len(clear_called) == 1
-        assert clipsy_app._entry_ids == {}
+        # Entry should be in entry_ids after search results are computed
+        assert f"clipsy_entry_{entry_id}" in clipsy_app._entry_ids
 
 
-class TestCreateEntryMenuItem:
-    """Test _create_entry_menu_item method."""
+class TestComputeEntrySpec:
+    """Test _compute_entry_spec method."""
 
-    @patch("clipsy.app.rumps")
-    def test_creates_menu_item_for_text_entry(self, mock_rumps, clipsy_app, make_entry):
-        """Test creating menu item for text entry."""
-        mock_rumps.MenuItem = MagicMock(return_value=MagicMock())
+    def test_creates_spec_for_text_entry(self, clipsy_app, make_entry):
+        """Test creating spec for text entry."""
+        from clipsy.app import MenuItemSpec
 
         entry_id = clipsy_app._storage.add_entry(make_entry("test text", content_hash="h1"))
         entry = clipsy_app._storage.get_entry(entry_id)
 
-        item = clipsy_app._create_entry_menu_item(entry)
+        spec = clipsy_app._compute_entry_spec(entry)
 
+        assert isinstance(spec, MenuItemSpec)
+        assert spec.title == "test text"
+        assert spec.entry_id == entry_id
         assert f"clipsy_entry_{entry_id}" in clipsy_app._entry_ids
-        mock_rumps.MenuItem.assert_called()
 
-    @patch("clipsy.app.rumps")
-    def test_creates_menu_item_for_image_with_thumbnail(self, mock_rumps, clipsy_app, make_entry):
-        """Test creating menu item for image entry with thumbnail."""
-        mock_rumps.MenuItem = MagicMock(return_value=MagicMock())
+    def test_creates_spec_for_image_with_thumbnail(self, clipsy_app, make_entry):
+        """Test creating spec for image entry with thumbnail."""
+        from clipsy.app import MenuItemSpec
 
         entry = make_entry(
             "img",
@@ -900,34 +901,36 @@ class TestCreateEntryMenuItem:
             image_path="/path/img.png",
             content_hash="h1",
         )
-        entry.thumbnail_path = "/path/thumb.png"
         entry_id = clipsy_app._storage.add_entry(entry)
-        # Re-get with thumbnail
         clipsy_app._storage.update_thumbnail_path(entry_id, "/path/thumb.png")
         entry = clipsy_app._storage.get_entry(entry_id)
 
-        item = clipsy_app._create_entry_menu_item(entry)
+        spec = clipsy_app._compute_entry_spec(entry)
 
-        # Should have called MenuItem with icon parameter
-        mock_rumps.MenuItem.assert_called()
+        assert isinstance(spec, MenuItemSpec)
+        assert spec.icon == "/path/thumb.png"
+        assert spec.dimensions == (32, 32)
+        assert spec.template is False
 
-    @patch("clipsy.app.rumps")
-    def test_creates_menu_item_for_image_without_thumbnail(self, mock_rumps, clipsy_app, make_entry):
-        """Test creating menu item for image entry without thumbnail."""
-        mock_rumps.MenuItem = MagicMock(return_value=MagicMock())
+    def test_creates_spec_for_image_without_thumbnail(self, clipsy_app, make_entry):
+        """Test creating spec for image entry without thumbnail."""
+        from clipsy.app import MenuItemSpec
 
         entry = make_entry(
             "img",
             content_type=ContentType.IMAGE,
             image_path="/nonexistent/img.png",
             content_hash="h1",
+            thumbnail_path=None,  # Explicitly no thumbnail
         )
         entry_id = clipsy_app._storage.add_entry(entry)
         entry = clipsy_app._storage.get_entry(entry_id)
 
-        item = clipsy_app._create_entry_menu_item(entry)
+        spec = clipsy_app._compute_entry_spec(entry)
 
-        mock_rumps.MenuItem.assert_called()
+        assert isinstance(spec, MenuItemSpec)
+        assert spec.icon is None
+        assert spec.dimensions is None
 
 
 class TestOnEntryClickRichText:
@@ -1071,6 +1074,134 @@ class TestOnEntryClickExceptionHandling:
                 pass  # Expected - we didn't mock the full copy path
 
 
+class TestComputeMenuSpecs:
+    """Test _compute_menu_specs method - pure logic, no rumps."""
+
+    def test_empty_history_shows_no_history_message(self, clipsy_app):
+        """Test that empty history shows appropriate message."""
+        from clipsy.app import MenuItemSpec
+
+        specs = clipsy_app._compute_menu_specs()
+
+        # Find the "no history" item
+        titles = [s.title if s else None for s in specs]
+        assert "(No clipboard history)" in titles
+
+    def test_with_entries_shows_entries(self, clipsy_app, make_entry):
+        """Test that entries are included in specs."""
+        from clipsy.app import MenuItemSpec
+
+        clipsy_app._storage.add_entry(make_entry("test entry", content_hash="h1"))
+
+        specs = clipsy_app._compute_menu_specs()
+
+        # Should have the entry
+        entry_specs = [s for s in specs if s and s.entry_id is not None]
+        assert len(entry_specs) == 1
+        assert entry_specs[0].title == "test entry"
+
+    def test_with_pinned_entries_creates_submenu(self, clipsy_app, make_entry):
+        """Test that pinned entries create a submenu."""
+        entry_id = clipsy_app._storage.add_entry(make_entry("pinned", content_hash="h1"))
+        clipsy_app._storage.toggle_pin(entry_id)
+
+        specs = clipsy_app._compute_menu_specs()
+
+        # Find pinned submenu
+        pinned_submenu = [s for s in specs if s and s.is_submenu and "Pinned" in s.title]
+        assert len(pinned_submenu) == 1
+        assert pinned_submenu[0].children is not None
+        assert len(pinned_submenu[0].children) >= 2  # Entry + separator + clear
+
+    def test_includes_standard_menu_items(self, clipsy_app):
+        """Test that standard menu items are included."""
+        specs = clipsy_app._compute_menu_specs()
+
+        titles = [s.title if s else None for s in specs]
+        assert any("Clipsy v" in t for t in titles if t)
+        assert "Search..." in titles
+        assert "Clear History" in titles
+        assert "Support Clipsy" in titles
+        assert "Quit Clipsy" in titles
+
+
+class TestComputeSearchResultsSpecs:
+    """Test _compute_search_results_specs method."""
+
+    def test_creates_specs_for_search_results(self, clipsy_app, make_entry):
+        """Test that search results create proper specs."""
+        from clipsy.app import MenuItemSpec
+
+        entry = make_entry("findable", content_hash="h1")
+        entry_id = clipsy_app._storage.add_entry(entry)
+        results = clipsy_app._storage.search("findable")
+
+        specs = clipsy_app._compute_search_results_specs("findable", results)
+
+        # Check header
+        assert any(s and 'Search: "findable"' in s.title for s in specs)
+
+        # Check "Show All" is present
+        titles = [s.title if s else None for s in specs]
+        assert "Show All" in titles
+
+        # Check entry is included
+        entry_specs = [s for s in specs if s and s.entry_id is not None]
+        assert len(entry_specs) == 1
+
+        # Check "Quit" is present
+        assert "Quit Clipsy" in titles
+
+
+class TestInitApp:
+    """Test _init_app method."""
+
+    @patch("clipsy.app.ClipboardMonitor")
+    @patch("clipsy.app.StorageManager")
+    @patch("clipsy.app.ensure_dirs")
+    def test_initializes_components(self, mock_dirs, mock_storage, mock_monitor, clipsy_app):
+        """Test that _init_app initializes all components."""
+        mock_storage.return_value = MagicMock()
+        mock_monitor.return_value = MagicMock()
+
+        # Reset state
+        clipsy_app._storage = None
+        clipsy_app._monitor = None
+        clipsy_app._entry_ids = None
+
+        # Call _init_app
+        clipsy_app._init_app()
+
+        mock_dirs.assert_called_once()
+        mock_storage.assert_called_once()
+        mock_monitor.assert_called_once()
+
+
+class TestBuildMenu:
+    """Test _build_menu method."""
+
+    def test_clears_and_rebuilds(self, clipsy_app, make_entry):
+        """Test that _build_menu clears menu and entry_ids."""
+        # Add an entry
+        clipsy_app._storage.add_entry(make_entry("test", content_hash="h1"))
+
+        # Pre-populate entry_ids
+        clipsy_app._entry_ids["old_key"] = 999
+
+        # Mock _render_menu_specs since it uses rumps
+        clipsy_app._render_menu_specs = MagicMock()
+
+        # Call _build_menu (need to bind the real method)
+        from clipsy.app import ClipsyApp
+        ClipsyApp._build_menu(clipsy_app)
+
+        # Old key should be gone
+        assert "old_key" not in clipsy_app._entry_ids
+        # New entry should be present (added by _compute_menu_specs -> _compute_entry_spec)
+        assert len(clipsy_app._entry_ids) == 1
+        clipsy_app._render_menu_specs.assert_called_once()
+
+
 class TestEnsureThumbnailGeneration:
     """Test _ensure_thumbnail thumbnail generation code path."""
 
@@ -1151,3 +1282,161 @@ class TestEnsureThumbnailGeneration:
 
         assert result == str(thumb_path)
         clipsy_app._storage.update_thumbnail_path.assert_called_once()
+
+
+class TestRenderMenuSpecs:
+    """Test _render_menu_specs converts specs to rumps items."""
+
+    def test_renders_specs_to_menu_items(self, clipsy_app):
+        """Test that specs are converted to menu items list."""
+        from clipsy.app import ClipsyApp, MenuItemSpec
+
+        mock_menu_item = MagicMock()
+        with patch("clipsy.app.rumps.MenuItem", return_value=mock_menu_item):
+            specs = [
+                MenuItemSpec("Item 1"),
+                None,  # separator
+                MenuItemSpec("Item 2", callback=lambda x: None),
+            ]
+            ClipsyApp._render_menu_specs(clipsy_app, specs)
+
+        # menu should be set to the list of items
+        assert isinstance(clipsy_app.menu, list)
+        assert len(clipsy_app.menu) == 3
+
+
+class TestRenderSingleSpec:
+    """Test _render_single_spec for various spec types."""
+
+    def test_none_spec_returns_none(self, clipsy_app):
+        """Test that None spec returns None (separator)."""
+        from clipsy.app import ClipsyApp
+
+        result = ClipsyApp._render_single_spec(clipsy_app, None)
+        assert result is None
+
+    def test_simple_spec_creates_menu_item(self, clipsy_app):
+        """Test that simple spec creates MenuItem."""
+        from clipsy.app import ClipsyApp, MenuItemSpec
+
+        mock_item = MagicMock()
+        with patch("clipsy.app.rumps.MenuItem", return_value=mock_item) as mock_cls:
+            spec = MenuItemSpec("Test Item")
+            result = ClipsyApp._render_single_spec(clipsy_app, spec)
+
+        mock_cls.assert_called_once_with("Test Item", callback=None)
+        assert result == mock_item
+
+    def test_spec_with_callback_passes_callback(self, clipsy_app):
+        """Test that callback is passed to MenuItem."""
+        from clipsy.app import ClipsyApp, MenuItemSpec
+
+        mock_item = MagicMock()
+        callback = MagicMock()
+        with patch("clipsy.app.rumps.MenuItem", return_value=mock_item) as mock_cls:
+            spec = MenuItemSpec("Test Item", callback=callback)
+            result = ClipsyApp._render_single_spec(clipsy_app, spec)
+
+        mock_cls.assert_called_once_with("Test Item", callback=callback)
+
+    def test_spec_with_icon_passes_icon(self, clipsy_app):
+        """Test that icon is passed to MenuItem."""
+        from clipsy.app import ClipsyApp, MenuItemSpec
+
+        mock_item = MagicMock()
+        with patch("clipsy.app.rumps.MenuItem", return_value=mock_item) as mock_cls:
+            spec = MenuItemSpec("Test Item", icon="/path/to/icon.png")
+            result = ClipsyApp._render_single_spec(clipsy_app, spec)
+
+        mock_cls.assert_called_once_with(
+            "Test Item", callback=None, icon="/path/to/icon.png"
+        )
+
+    def test_spec_with_dimensions_passes_dimensions(self, clipsy_app):
+        """Test that dimensions are passed to MenuItem."""
+        from clipsy.app import ClipsyApp, MenuItemSpec
+
+        mock_item = MagicMock()
+        with patch("clipsy.app.rumps.MenuItem", return_value=mock_item) as mock_cls:
+            spec = MenuItemSpec("Test Item", icon="/path.png", dimensions=(32, 32))
+            result = ClipsyApp._render_single_spec(clipsy_app, spec)
+
+        mock_cls.assert_called_once_with(
+            "Test Item", callback=None, icon="/path.png", dimensions=(32, 32)
+        )
+
+    def test_spec_with_template_passes_template(self, clipsy_app):
+        """Test that template is passed to MenuItem."""
+        from clipsy.app import ClipsyApp, MenuItemSpec
+
+        mock_item = MagicMock()
+        with patch("clipsy.app.rumps.MenuItem", return_value=mock_item) as mock_cls:
+            spec = MenuItemSpec("Test Item", icon="/path.png", template=False)
+            result = ClipsyApp._render_single_spec(clipsy_app, spec)
+
+        mock_cls.assert_called_once_with(
+            "Test Item", callback=None, icon="/path.png", template=False
+        )
+
+    def test_spec_with_entry_id_sets_id(self, clipsy_app):
+        """Test that entry_id is set on the MenuItem."""
+        from clipsy.app import ClipsyApp, MenuItemSpec
+
+        mock_item = MagicMock()
+        with patch("clipsy.app.rumps.MenuItem", return_value=mock_item):
+            spec = MenuItemSpec("Test Item", entry_id=42)
+            result = ClipsyApp._render_single_spec(clipsy_app, spec)
+
+        assert mock_item._id == "clipsy_entry_42"
+
+    def test_submenu_spec_creates_submenu(self, clipsy_app):
+        """Test that submenu spec creates MenuItem with children."""
+        from clipsy.app import ClipsyApp, MenuItemSpec
+
+        # Track MenuItem instances
+        menu_items = []
+
+        def create_menu_item(*args, **kwargs):
+            item = MagicMock()
+            menu_items.append(item)
+            return item
+
+        # Bind the real method to clipsy_app for recursive calls
+        clipsy_app._render_single_spec = lambda spec: ClipsyApp._render_single_spec(
+            clipsy_app, spec
+        )
+
+        with patch("clipsy.app.rumps.MenuItem", side_effect=create_menu_item):
+            spec = MenuItemSpec(
+                "Parent",
+                is_submenu=True,
+                children=[
+                    MenuItemSpec("Child 1"),
+                    None,  # separator
+                    MenuItemSpec("Child 2"),
+                ],
+            )
+            result = ClipsyApp._render_single_spec(clipsy_app, spec)
+
+        # Parent + 2 children = 3 MenuItem instances
+        assert len(menu_items) == 3
+        # Parent should have add called for each child
+        parent = menu_items[0]
+        assert parent.add.call_count == 3  # 2 children + 1 separator (None)
+
+
+class TestClipsyAppInitialization:
+    """Test ClipsyApp.__init__ method."""
+
+    @patch("clipsy.app.ClipsyApp._init_app")
+    @patch("rumps.App.__init__")
+    def test_init_calls_super_and_init_app(self, mock_super_init, mock_init_app):
+        """Test that __init__ calls super().__init__ and _init_app."""
+        from clipsy.app import ClipsyApp
+
+        # Create instance
+        app = object.__new__(ClipsyApp)
+        ClipsyApp.__init__(app)
+
+        mock_super_init.assert_called_once_with("Clipsy", title="✂️", quit_button=None)
+        mock_init_app.assert_called_once()

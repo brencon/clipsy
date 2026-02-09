@@ -332,6 +332,7 @@ def clipsy_app(storage):
     app._storage = storage
     app._monitor = MagicMock()
     app._entry_ids = {}
+    app._auto_paste = False
     app.menu = MagicMock()
 
     # Bind real methods
@@ -345,6 +346,7 @@ def clipsy_app(storage):
     app._on_clear = lambda sender: ClipsyApp._on_clear(app, sender)
     app._on_pin_toggle = lambda entry: ClipsyApp._on_pin_toggle(app, entry)
     app._on_entry_click = lambda sender: ClipsyApp._on_entry_click(app, sender)
+    app._on_toggle_auto_paste = lambda sender: ClipsyApp._on_toggle_auto_paste(app, sender)
     app._on_search = lambda sender: ClipsyApp._on_search(app, sender)
     app._compute_entry_spec = lambda entry: ClipsyApp._compute_entry_spec(app, entry)
     app._compute_menu_specs = lambda: ClipsyApp._compute_menu_specs(app)
@@ -1123,6 +1125,102 @@ class TestComputeMenuSpecs:
         assert "Clear History" in titles
         assert "Support Clipsy" in titles
         assert "Quit Clipsy" in titles
+
+
+class TestAutoPaste:
+    """Test auto-paste toggle and behavior."""
+
+    def test_menu_shows_auto_paste_on(self, clipsy_app):
+        clipsy_app._auto_paste = True
+        specs = clipsy_app._compute_menu_specs()
+        titles = [s.title if s else None for s in specs]
+        assert "Auto-Paste: On" in titles
+
+    def test_menu_shows_auto_paste_off(self, clipsy_app):
+        clipsy_app._auto_paste = False
+        specs = clipsy_app._compute_menu_specs()
+        titles = [s.title if s else None for s in specs]
+        assert "Auto-Paste: Off" in titles
+
+    def test_toggle_switches_state(self, clipsy_app):
+        clipsy_app._auto_paste = False
+        clipsy_app._on_toggle_auto_paste(None)
+        assert clipsy_app._auto_paste is True
+        clipsy_app._on_toggle_auto_paste(None)
+        assert clipsy_app._auto_paste is False
+
+    @patch("clipsy.app.simulate_paste")
+    @patch("clipsy.app.rumps")
+    def test_auto_paste_schedules_paste_when_enabled(self, mock_rumps, mock_sim_paste, clipsy_app, make_entry):
+        clipsy_app._build_menu = MagicMock()
+        clipsy_app._auto_paste = True
+
+        entry_id = clipsy_app._storage.add_entry(make_entry("test", content_hash="h1"))
+        clipsy_app._entry_ids[f"clipsy_entry_{entry_id}"] = entry_id
+
+        sender = MagicMock()
+        sender._id = f"clipsy_entry_{entry_id}"
+
+        mock_ns_event = MagicMock()
+        mock_ns_event.modifierFlags.return_value = 0
+        mock_pasteboard = MagicMock()
+        mock_ns_pasteboard = MagicMock()
+        mock_ns_pasteboard.generalPasteboard.return_value = mock_pasteboard
+
+        mock_timer = MagicMock()
+        with patch.dict(
+            "sys.modules",
+            {
+                "AppKit": MagicMock(
+                    NSEvent=mock_ns_event,
+                    NSAlternateKeyMask=0x80000,
+                    NSPasteboard=mock_ns_pasteboard,
+                    NSPasteboardTypeString="public.utf8-plain-text",
+                    NSPasteboardTypePNG="public.png",
+                ),
+                "Foundation": MagicMock(NSData=MagicMock()),
+            },
+        ):
+            with patch("threading.Timer", return_value=mock_timer) as mock_timer_cls:
+                clipsy_app._on_entry_click(sender)
+
+        mock_timer_cls.assert_called_once_with(0.05, mock_sim_paste)
+        mock_timer.start.assert_called_once()
+        mock_rumps.notification.assert_not_called()
+
+    @patch("clipsy.app.rumps")
+    def test_auto_paste_disabled_shows_notification(self, mock_rumps, clipsy_app, make_entry):
+        clipsy_app._build_menu = MagicMock()
+        clipsy_app._auto_paste = False
+
+        entry_id = clipsy_app._storage.add_entry(make_entry("test", content_hash="h1"))
+        clipsy_app._entry_ids[f"clipsy_entry_{entry_id}"] = entry_id
+
+        sender = MagicMock()
+        sender._id = f"clipsy_entry_{entry_id}"
+
+        mock_ns_event = MagicMock()
+        mock_ns_event.modifierFlags.return_value = 0
+        mock_pasteboard = MagicMock()
+        mock_ns_pasteboard = MagicMock()
+        mock_ns_pasteboard.generalPasteboard.return_value = mock_pasteboard
+
+        with patch.dict(
+            "sys.modules",
+            {
+                "AppKit": MagicMock(
+                    NSEvent=mock_ns_event,
+                    NSAlternateKeyMask=0x80000,
+                    NSPasteboard=mock_ns_pasteboard,
+                    NSPasteboardTypeString="public.utf8-plain-text",
+                    NSPasteboardTypePNG="public.png",
+                ),
+                "Foundation": MagicMock(NSData=MagicMock()),
+            },
+        ):
+            clipsy_app._on_entry_click(sender)
+
+        mock_rumps.notification.assert_called_once_with("Clipsy", "", "Copied to clipboard", sound=False)
 
 
 class TestComputeSearchResultsSpecs:

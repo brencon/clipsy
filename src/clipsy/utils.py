@@ -70,3 +70,25 @@ def create_thumbnail(image_path: str, thumb_path: str, size: tuple[int, int] = (
         return bool(png_data.writeToFile_atomically_(thumb_path, True))
     except Exception:
         return False
+
+
+def simulate_paste() -> bool:
+    try:
+        from Quartz import (
+            CGEventCreateKeyboardEvent,
+            CGEventPost,
+            CGEventSetFlags,
+            kCGEventFlagMaskCommand,
+            kCGHIDEventTap,
+        )
+
+        event_down = CGEventCreateKeyboardEvent(None, 9, True)
+        CGEventSetFlags(event_down, kCGEventFlagMaskCommand)
+        CGEventPost(kCGHIDEventTap, event_down)
+
+        event_up = CGEventCreateKeyboardEvent(None, 9, False)
+        CGEventSetFlags(event_up, kCGEventFlagMaskCommand)
+        CGEventPost(kCGHIDEventTap, event_up)
+        return True
+    except Exception:
+        return False

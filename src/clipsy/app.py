@@ -7,11 +7,11 @@ from typing import Callable
 import rumps
 
 from clipsy import __version__
-from clipsy.config import DB_PATH, IMAGE_DIR, MAX_PINNED_ENTRIES, MENU_DISPLAY_COUNT, POLL_INTERVAL, REDACT_SENSITIVE, THUMBNAIL_SIZE
+from clipsy.config import AUTO_PASTE, DB_PATH, IMAGE_DIR, MAX_PINNED_ENTRIES, MENU_DISPLAY_COUNT, POLL_INTERVAL, REDACT_SENSITIVE, THUMBNAIL_SIZE
 from clipsy.models import ClipboardEntry, ContentType
 from clipsy.monitor import ClipboardMonitor
 from clipsy.storage import StorageManager
-from clipsy.utils import create_thumbnail, ensure_dirs
+from clipsy.utils import create_thumbnail, ensure_dirs, simulate_paste
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +43,7 @@ class ClipsyApp(rumps.App):
         self._storage = StorageManager(DB_PATH)
         self._monitor = ClipboardMonitor(self._storage, on_change=self._refresh_menu)
         self._entry_ids: dict[str, int] = {}
+        self._auto_paste = AUTO_PASTE
         self._build_menu()
 
     def _build_menu(self) -> None:
@@ -78,7 +79,10 @@ class ClipsyApp(rumps.App):
             for entry in entries:
                 specs.append(self._compute_entry_spec(entry))
 
+        auto_paste_label = "Auto-Paste: On" if self._auto_paste else "Auto-Paste: Off"
         specs.extend([
+            None,  # separator
+            MenuItemSpec(auto_paste_label, callback=self._on_toggle_auto_paste),
             None,  # separator
             MenuItemSpec("Clear History", callback=self._on_clear),
             None,  # separator
@@ -240,7 +244,12 @@ class ClipsyApp(rumps.App):
             if copied:
                 self._storage.update_timestamp(entry_id)
                 self._refresh_menu()
-                rumps.notification("Clipsy", "", "Copied to clipboard", sound=False)
+                if self._auto_paste:
+                    import threading
+
+                    threading.Timer(0.05, simulate_paste).start()
+                else:
+                    rumps.notification("Clipsy", "", "Copied to clipboard", sound=False)
         except Exception:
             logger.exception("Error copying entry to clipboard")
 
@@ -309,6 +318,10 @@ class ClipsyApp(rumps.App):
         ])
 
         return specs
+
+    def _on_toggle_auto_paste(self, _sender) -> None:
+        self._auto_paste = not self._auto_paste
+        self._refresh_menu()
 
     def _on_clear(self, _sender) -> None:
         if rumps.alert("Clipsy", "Clear all clipboard history?", ok="Clear", cancel="Cancel"):

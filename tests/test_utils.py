@@ -1,7 +1,7 @@
 import struct
 from unittest.mock import MagicMock, patch
 
-from clipsy.utils import compute_hash, create_thumbnail, ensure_dirs, get_image_dimensions, truncate_text
+from clipsy.utils import compute_hash, create_thumbnail, ensure_dirs, get_image_dimensions, simulate_paste, truncate_text
 
 
 class TestComputeHash:
@@ -211,3 +211,46 @@ class TestCreateThumbnail:
             result = create_thumbnail("/fake.png", str(tmp_path / "thumb.png"))
 
         assert result is False
+
+
+class TestSimulatePaste:
+    def test_success_with_quartz(self):
+        mock_quartz = MagicMock()
+        with patch.dict("sys.modules", {"Quartz": mock_quartz}):
+            result = simulate_paste()
+
+        assert result is True
+        assert mock_quartz.CGEventCreateKeyboardEvent.call_count == 2
+        assert mock_quartz.CGEventSetFlags.call_count == 2
+        assert mock_quartz.CGEventPost.call_count == 2
+
+    def test_returns_false_when_quartz_unavailable(self):
+        with patch.dict("sys.modules", {"Quartz": None}):
+            result = simulate_paste()
+
+        assert result is False
+
+    def test_returns_false_on_exception(self):
+        mock_quartz = MagicMock()
+        mock_quartz.CGEventCreateKeyboardEvent.side_effect = RuntimeError("boom")
+        with patch.dict("sys.modules", {"Quartz": mock_quartz}):
+            result = simulate_paste()
+
+        assert result is False
+
+    def test_uses_correct_keycode_for_v(self):
+        mock_quartz = MagicMock()
+        with patch.dict("sys.modules", {"Quartz": mock_quartz}):
+            simulate_paste()
+
+        calls = mock_quartz.CGEventCreateKeyboardEvent.call_args_list
+        assert calls[0].args == (None, 9, True)   # key down
+        assert calls[1].args == (None, 9, False)   # key up
+
+    def test_posts_to_hid_event_tap(self):
+        mock_quartz = MagicMock()
+        with patch.dict("sys.modules", {"Quartz": mock_quartz}):
+            simulate_paste()
+
+        for call in mock_quartz.CGEventPost.call_args_list:
+            assert call.args[0] == mock_quartz.kCGHIDEventTap

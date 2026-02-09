@@ -17,7 +17,7 @@ A lightweight clipboard history manager for macOS. Runs as a menu bar icon — n
 - **Search** — Full-text search across all clipboard entries (SQLite FTS5)
 - **Rich text preservation** — Preserves RTF and HTML formatting when re-copying from history (e.g., bold, italic, links from web pages)
 - **Pin favorites** — Option-click to pin up to 5 frequently-used snippets (sensitive data cannot be pinned)
-- **Click to re-copy** — Click any entry in the menu to put it back on your clipboard
+- **Auto-paste** — Click any entry and it pastes directly where your cursor was (toggle on/off from the menu; requires macOS Accessibility permission)
 - **Deduplication** — Copying the same content twice bumps it to the top instead of creating a duplicate
 - **Auto-purge** — Keeps the most recent 500 entries, automatically cleans up old ones
 - **Persistent storage** — History survives app restarts (SQLite database)
@@ -86,6 +86,8 @@ Then just use your Mac normally. Every time you copy something, it shows up in t
 ├── [thumbnail] "[Image: 1920x1080]"
 ├── ... (up to 10 items, configurable)
 ├── ──────────────────
+├── Auto-Paste: On
+├── ──────────────────
 ├── Clear History
 ├── ──────────────────
 ├── Support Clipsy
@@ -109,11 +111,21 @@ clipsy run        # Run in foreground (for debugging)
 | Variable | Default | Range | Description |
 |----------|---------|-------|-------------|
 | `CLIPSY_MENU_DISPLAY_COUNT` | `10` | 5–50 | Number of entries shown in the menu |
+| `CLIPSY_AUTO_PASTE` | `true` | `true`/`false` | Auto-paste on click (requires Accessibility permission) |
 
 ```bash
 # Example: show 20 entries in the menu
 export CLIPSY_MENU_DISPLAY_COUNT=20
+
+# Disable auto-paste (click copies to clipboard only)
+export CLIPSY_AUTO_PASTE=false
 ```
+
+### Auto-Paste
+
+When Auto-Paste is enabled (the default), clicking a Clipsy entry copies it to the clipboard **and** pastes it directly where your cursor was — no need to Cmd+V manually. You can toggle this on/off from the menu.
+
+Auto-Paste requires **macOS Accessibility permission**. The first time it fires, macOS will prompt you to grant access to the app running Clipsy (e.g., Terminal, VS Code, or iTerm). Grant it in **System Settings > Privacy & Security > Accessibility**. If permission is not granted, Clipsy falls back to copy-only behavior silently.
 
 ## Data Storage
 
@@ -154,9 +166,8 @@ NSPasteboard → monitor.py → redact.py → storage.py (SQLite) → app.py (me
 
 ### Dependencies
 
-Only one external dependency:
-
 - **`rumps`** — macOS menu bar app framework (brings `pyobjc-framework-Cocoa` transitively)
+- **`pyobjc-framework-Quartz`** — Keyboard event simulation for auto-paste
 - **`sqlite3`** — Built into Python
 
 ## License
